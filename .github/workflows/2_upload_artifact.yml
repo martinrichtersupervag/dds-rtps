@@ -31,6 +31,7 @@ jobs:
             [mygdrive]
             type = drive
             token = ${{ secrets.RCLONE_TOKEN }}
+          disable_base64: true
 
       - name: Upload reports to Google Drive
         run: |
