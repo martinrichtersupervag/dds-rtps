@@ -1,5 +1,5 @@
 name: 2 - Upload Test Results to Drive
-run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
+run-name: ${{ github.actor }} is testing out GitHub Actions
 on: workflow_dispatch
 jobs:
   upload_artifact:
