@@ -1,4 +1,4 @@
-name: 3 - Batch Run and Compare Reports
+name: Batch Run and Compare Reports
 run-name: Batch Run (${{ github.event.inputs.iterations }}x) & Compare Reports
 on:
   workflow_dispatch:
