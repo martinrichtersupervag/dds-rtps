@@ -47,7 +47,7 @@ jobs:
     - name: Unzip executables
       run: unzip 'zipped_executables/*.zip' -d executables
     - name: Install Python requirements
-      run: pip install --requirement requirements.txt
+      run: pip install --break-system-packages --requirement requirements.txt
     - name: Run Interoperability script
       timeout-minutes: 120
       continue-on-error: true
@@ -94,7 +94,7 @@ jobs:
           pattern: junit_report-*
           merge-multiple: true
       - name: Install Python requirements
-        run: pip install --requirement requirements.txt
+        run: pip install --break-system-packages --requirement requirements.txt
       - name: merge reports
         run: junitparser merge *.xml junit_interoperability_report.xml
       - name: Generate xlsx report
