@@ -36,9 +36,6 @@ jobs:
     steps:
     - name: Checkout sources
       uses: actions/checkout@v6
-    - uses: actions/setup-python@v6
-      with:
-        python-version: '3.11.4'
     - name: Download shape_main executables
       uses: robinraju/release-downloader@v1.13
       with:
@@ -96,9 +93,6 @@ jobs:
         with:
           pattern: junit_report-*
           merge-multiple: true
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.11.4'
       - name: Install Python requirements
         run: pip install --requirement requirements.txt
       - name: merge reports
