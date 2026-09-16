@@ -1,0 +1,45 @@
+name: 2 - Upload Local Test Results to Drive
+run-name: ${{ github.actor }} is testing out GitHub Actions 🚀
+on: workflow_dispatch
+jobs:
+  upload_artifact:
+    runs-on: self-hosted
+    steps:
+      - name: Get Artifact
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: interoperability_report_complete
+          workflow: 1_run_interoperability_tests_local.yml
+          workflow_conclusion: completed
+
+      - name: Create files to upload
+        run: |
+            current_date=$(cat timestamp)
+            mv index.html interoperability_report.html
+            for file in *; do \
+                mv "$file" "${file%.*}_$current_date.${file##*.}"; \
+            done
+            zip interoperability_report_$current_date.zip *
+            mkdir report_$current_date
+            mv *.zip report_$current_date/
+            mv *.xlsx report_$current_date/
+
+      - name: Setup Rclone
+        uses: AnimMouse/setup-rclone@v1
+        with:
+          rclone_config: |
+            [mygdrive]
+            type = drive
+            token = ${{ secrets.RCLONE_TOKEN }}
+          disable_base64: true
+
+      - name: Upload reports to Google Drive
+        run: |
+          rclone copy report_* mygdrive: --drive-root-folder-id ${{ secrets.DRIVE_FOLDER_ID }} -v
+
+      - name: Attach detailed report html
+        uses: actions/upload-artifact@v4
+        with:
+          name: detailed_report
+          path: |
+            ./interoperability_report*.html
