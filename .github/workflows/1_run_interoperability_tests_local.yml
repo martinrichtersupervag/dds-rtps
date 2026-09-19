@@ -54,6 +54,14 @@ jobs:
         run: unzip 'zipped_executables/*.zip' -d executables
       - name: Install Python requirements
         run: pip install --break-system-packages --requirement requirements.txt
+      - name: Configure Network Isolation & Disable IPv6
+        run: |
+          # Disable IPv6 to prevent Dust DDS panic on unimplemented LOCATOR_KIND_UDP_V6
+          sudo sysctl -w net.ipv6.conf.all.disable_ipv6=1 || true
+          sudo sysctl -w net.ipv6.conf.default.disable_ipv6=1 || true
+          sudo sysctl -w net.ipv6.conf.lo.disable_ipv6=1 || true
+          # Route DDS multicast discovery (224.0.0.0/4) exclusively to loopback to isolate from LAN
+          sudo ip route replace 224.0.0.0/4 dev lo || true
       - name: Run Interoperability script
         timeout-minutes: 120
         continue-on-error: true
@@ -94,6 +102,13 @@ jobs:
           path: |
             ./junit_report-${{ matrix.publisher }}-${{ matrix.subscriber }}.xml
             ./timestamp
+      - name: Restore Network Settings
+        if: always()
+        run: |
+          sudo sysctl -w net.ipv6.conf.all.disable_ipv6=0 || true
+          sudo sysctl -w net.ipv6.conf.default.disable_ipv6=0 || true
+          sudo sysctl -w net.ipv6.conf.lo.disable_ipv6=0 || true
+          sudo ip route del 224.0.0.0/4 dev lo || true
 
   generate_report:
     runs-on: self-hosted

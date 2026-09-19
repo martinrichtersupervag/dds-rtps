@@ -68,6 +68,7 @@ build/
 *.xml
 *.zip
 *.html
+archive_reports/
 
 # Do not ignore templates
 !doc/_templates/*.html
