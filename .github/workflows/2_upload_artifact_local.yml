@@ -21,15 +21,29 @@ jobs:
       - name: Create files to upload
         run: |
             rm -rf report_*
-            current_date=$(cat timestamp)
-            mv index.html interoperability_report.html
-            for file in *; do \
-                mv "$file" "${file%.*}_$current_date.${file##*.}"; \
+            if [ -f timestamp ]; then
+              current_date=$(cat timestamp)
+            elif ls timestamp*.timestamp 1>/dev/null 2>&1; then
+              current_date=$(cat timestamp*.timestamp | head -n 1)
+            else
+              current_date=$(date '+%Y-%m-%d-%H_%M_%S')
+            fi
+            echo "$current_date" > timestamp
+
+            [ -f index.html ] && mv index.html interoperability_report.html
+
+            for file in interoperability_report.html junit_interoperability_report.xml interoperability_report.xlsx timestamp; do
+              if [ -f "$file" ]; then
+                cp "$file" "${file%.*}_$current_date.${file##*.}"
+              fi
             done
-            zip interoperability_report_$current_date.zip *
-            mkdir report_$current_date
-            mv *.zip report_$current_date/
-            mv *.xlsx report_$current_date/
+
+            zip interoperability_report_$current_date.zip *_$current_date.*
+            mkdir -p report_$current_date
+            mv interoperability_report_$current_date.zip report_$current_date/
+            if [ -f interoperability_report_$current_date.xlsx ]; then
+              cp interoperability_report_$current_date.xlsx report_$current_date/
+            fi
 
       - name: Setup Rclone
         uses: AnimMouse/setup-rclone@v1
