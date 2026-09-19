@@ -12,8 +12,15 @@ jobs:
           workflow: 1_run_interoperability_tests_local.yml
           workflow_conclusion: completed
 
+      - name: Ensure system dependencies
+        run: |
+          for cmd in zip gh; do
+            which "$cmd" >/dev/null 2>&1 || sudo apt-get install -y "$cmd"
+          done
+
       - name: Create files to upload
         run: |
+            rm -rf report_*
             current_date=$(cat timestamp)
             mv index.html interoperability_report.html
             for file in *; do \
@@ -35,7 +42,8 @@ jobs:
 
       - name: Upload reports to Google Drive
         run: |
-          rclone copy report_* mygdrive: --drive-root-folder-id ${{ secrets.DRIVE_FOLDER_ID }} -v
+          current_date=$(cat timestamp)
+          rclone copy report_$current_date mygdrive:report_$current_date --drive-root-folder-id ${{ secrets.DRIVE_FOLDER_ID }} -v
 
       - name: Attach detailed report html
         uses: actions/upload-artifact@v4
