@@ -6,21 +6,20 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     HOME=/tmp
 
-# Install core runtime dependencies: Python 3, Node.js (for xunit-viewer), and network tools
+# Install core runtime dependencies: Python 3, Node.js (via NodeSource 20 LTS), and network tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
-    nodejs \
-    npm \
+    ca-certificates \
+    curl \
     unzip \
     zip \
-    curl \
     iproute2 \
     procps \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g xunit-viewer \
     && rm -rf /var/lib/apt/lists/*
-
-# Install xunit-viewer globally for HTML report generation
-RUN npm install -g xunit-viewer
 
 # Set working directory
 WORKDIR /workspace
