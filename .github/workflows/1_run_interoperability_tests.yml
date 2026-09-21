@@ -11,9 +11,13 @@ on:
         description: Subscribers to use
         type: string
         default: '["connext_dds","dust_dds","eprosima_fastdds","intercom_dds","opendds","toc_coredx_dds", "hdds", "eclipse_cyclone", "zzdds"]'
+      runner:
+        description: Runner to use
+        type: string
+        default: 'ubuntu-latest'
 jobs:
   generate_timestamp:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     steps:
     - name: Generate timestamp file
       run: date '+%Y-%m-%d-%H_%M_%S' > timestamp
@@ -25,9 +29,10 @@ jobs:
           ./timestamp
 
   run_tests:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     needs: generate_timestamp
     strategy:
+      fail-fast: false
       matrix:
         publisher: ${{ fromJson(github.event.inputs.publishers) }}
         subscriber: ${{ fromJson(github.event.inputs.subscribers) }}
@@ -36,11 +41,13 @@ jobs:
     - name: Checkout sources
       uses: actions/checkout@v6
     - uses: actions/setup-python@v6
+      continue-on-error: true
       with:
         python-version: '3.11.4'
     - name: Download shape_main executables
       uses: robinraju/release-downloader@v1.13
       with:
+        repository: "omg-dds/dds-rtps"
         latest: true
         fileName: "*"
         out-file-path: zipped_executables
@@ -48,7 +55,7 @@ jobs:
     - name: Unzip executables
       run: unzip 'zipped_executables/*.zip' -d executables
     - name: Install Python requirements
-      run: pip install --requirement requirements.txt
+      run: pip install --requirement requirements.txt || pip install --break-system-packages --requirement requirements.txt
     - name: Run Interoperability script
       timeout-minutes: 120
       continue-on-error: true
@@ -84,7 +91,7 @@ jobs:
           ./timestamp
 
   generate_report:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     needs: run_tests
     steps:
       - name: Checkout
@@ -95,12 +102,13 @@ jobs:
           pattern: junit_report-*
           merge-multiple: true
       - uses: actions/setup-python@v6
+        continue-on-error: true
         with:
           python-version: '3.11.4'
       - name: Install Python requirements
-        run: pip install --requirement requirements.txt
+        run: pip install --requirement requirements.txt || pip install --break-system-packages --requirement requirements.txt
       - name: merge reports
-        run: junitparser merge *.xml junit_interoperability_report.xml
+        run: python3 -m junitparser merge *.xml junit_interoperability_report.xml
       - name: Generate xlsx report
         run: python3 generate_xlsx_report.py --input junit_interoperability_report.xml --output interoperability_report.xlsx
       - name: XUnit
