@@ -545,6 +545,10 @@ To generate the report you should follow the next steps:
 
 ![Run-workflow](./resource/_md/img/img3.png)
 
+> **Note on Runner Environment**:
+> * **`ubuntu-latest`** *(default)*: Executes in GitHub Actions cloud.
+> * **`self-hosted`**: Executes on your own self-hosted runner (e.g. inside an LXC container). In this mode, the workflow automatically runs tests inside an isolated Docker container (`run_in_docker.sh`) to prevent RTPS multicast discovery traffic from leaking into the physical local network.
+
 4. Wait a few minutes until the new task is finished and then press it.\
 Example of a successful and a failed test:
 

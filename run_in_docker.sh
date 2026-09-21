@@ -24,31 +24,39 @@ if [[ "$1" == "--build" ]] || [[ "$(docker images -q "$IMAGE_NAME" 2> /dev/null)
     fi
 fi
 
-# Archive previous test results on host if present
-archive_dir="$SCRIPT_DIR/archive_reports"
-shopt -s nullglob
-old_reports=("$SCRIPT_DIR"/*.xml "$SCRIPT_DIR"/*.xlsx "$SCRIPT_DIR"/index.html)
-if [ ${#old_reports[@]} -gt 0 ]; then
-    echo "==> Archiving previous test reports to archive_reports/..."
-    mkdir -p "$archive_dir"
-    mv "${old_reports[@]}" "$archive_dir/" 2>/dev/null || true
+# Archive previous test results on host if interactive
+if [ $# -eq 0 ]; then
+    archive_dir="$SCRIPT_DIR/archive_reports"
+    shopt -s nullglob
+    old_reports=("$SCRIPT_DIR"/*.xml "$SCRIPT_DIR"/*.xlsx "$SCRIPT_DIR"/index.html)
+    if [ ${#old_reports[@]} -gt 0 ]; then
+        echo "==> Archiving previous test reports to archive_reports/..."
+        mkdir -p "$archive_dir"
+        mv "${old_reports[@]}" "$archive_dir/" 2>/dev/null || true
+    fi
+    shopt -u nullglob
 fi
-shopt -u nullglob
 
 echo "==> Running in isolated Docker container (bridge network, contained multicast)..."
+
+# Detect if running in an interactive terminal (allocate pseudo-TTY only if interactive)
+DOCKER_FLAGS="-i"
+if [ -t 0 ] && [ -t 1 ]; then
+    DOCKER_FLAGS="-it"
+fi
 
 # Run container:
 # - Mount current directory to /workspace so test reports are saved to host
 # - Default bridge network isolates multicast discovery (239.255.0.1) from local LAN
 # - Passes any additional arguments directly to the container command
 if [ $# -eq 0 ]; then
-    docker run --rm -it \
+    docker run --rm $DOCKER_FLAGS \
         -v "$SCRIPT_DIR:/workspace" \
         -w /workspace \
         "$IMAGE_NAME" \
         /bin/bash
 else
-    docker run --rm -it \
+    docker run --rm $DOCKER_FLAGS \
         -v "$SCRIPT_DIR:/workspace" \
         -w /workspace \
         "$IMAGE_NAME" \
