@@ -77,7 +77,13 @@ jobs:
         if [[ "${subscriber_exe,,}" == *opendds* && "${publisher_exe,,}" == *connext_dds* ]]; then
           extra_args="--periodic-announcement 5000"
         fi
-        python3 interoperability_report.py --publisher $publisher_exe --subscriber $subscriber_exe --output-name $output_file $extra_args
+        if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ]; then
+          echo "Running on self-hosted runner: executing inside isolated Docker container..."
+          ./run_in_docker.sh python3 interoperability_report.py --publisher $publisher_exe --subscriber $subscriber_exe --output-name $output_file $extra_args
+        else
+          echo "Running in GitHub-hosted environment: executing directly..."
+          python3 interoperability_report.py --publisher $publisher_exe --subscriber $subscriber_exe --output-name $output_file $extra_args
+        fi
     - name: Download timestamp
       uses: actions/download-artifact@v8
       with:
