@@ -50,6 +50,8 @@ echo "    Command: $TEST_CMD"
 
 # 3. Run container, execute tests, generate reports, and automatically terminate container (--rm)
 docker run --rm \
+    --user "$(id -u):$(id -g)" \
+    -e PYTHONDONTWRITEBYTECODE=1 \
     -v "$SCRIPT_DIR:/workspace" \
     -w /workspace \
     "$IMAGE_NAME" \

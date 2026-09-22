@@ -74,6 +74,8 @@ archive_reports/
 !doc/_templates/*.html
 
 .DS_Store
+core
+core.*
 
 # Generated documentation files
 gdrive_url.py

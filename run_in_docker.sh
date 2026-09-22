@@ -48,15 +48,20 @@ fi
 # Run container:
 # - Mount current directory to /workspace so test reports are saved to host
 # - Default bridge network isolates multicast discovery (239.255.0.1) from local LAN
+# - Runs with current host user UID:GID and PYTHONDONTWRITEBYTECODE=1 to avoid permission issues
 # - Passes any additional arguments directly to the container command
 if [ $# -eq 0 ]; then
     docker run --rm $DOCKER_FLAGS \
+        --user "$(id -u):$(id -g)" \
+        -e PYTHONDONTWRITEBYTECODE=1 \
         -v "$SCRIPT_DIR:/workspace" \
         -w /workspace \
         "$IMAGE_NAME" \
         /bin/bash
 else
     docker run --rm $DOCKER_FLAGS \
+        --user "$(id -u):$(id -g)" \
+        -e PYTHONDONTWRITEBYTECODE=1 \
         -v "$SCRIPT_DIR:/workspace" \
         -w /workspace \
         "$IMAGE_NAME" \
