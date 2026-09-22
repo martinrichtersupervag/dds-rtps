@@ -928,12 +928,6 @@ class XlsxReport:
                 'Results where each product is tested only with itself')
         current_row += 1
         worksheet.write(current_row, starting_column + 1,
-                'Cross-Product Tests',
-                self.__formats['bold'])
-        worksheet.write(current_row, starting_column + 2,
-                'Results where each product is tested against all others (including itself)')
-        current_row += 1
-        worksheet.write(current_row, starting_column + 1,
                 'Format X / Y / Z',
                 self.__formats['bold'])
         worksheet.write(current_row, starting_column + 2,
