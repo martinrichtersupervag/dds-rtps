@@ -7,8 +7,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     HOME=/tmp
 
-# Install core runtime dependencies: Python 3, Node.js (via NodeSource 20 LTS), and network tools
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install core runtime dependencies: Python 3, Node.js (via NodeSource 20 LTS), network tools and tshark
+RUN echo "wireshark-common wireshark-common/install-setuid boolean true" | debconf-set-selections \
+    && apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     ca-certificates \
@@ -17,6 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zip \
     iproute2 \
     procps \
+    tshark \
+    && chmod 4755 /usr/bin/dumpcap \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && npm install -g xunit-viewer \

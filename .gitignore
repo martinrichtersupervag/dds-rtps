@@ -68,6 +68,9 @@ build/
 *.xml
 *.zip
 *.html
+discovery_report_*.json
+discovery_summary.json
+timestamp
 archive_reports/
 
 # Do not ignore templates

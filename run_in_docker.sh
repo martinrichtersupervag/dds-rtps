@@ -52,6 +52,8 @@ fi
 # - Passes any additional arguments directly to the container command
 if [ $# -eq 0 ]; then
     docker run --rm $DOCKER_FLAGS \
+        --cap-add=NET_ADMIN \
+        --cap-add=NET_RAW \
         --user "$(id -u):$(id -g)" \
         -e PYTHONDONTWRITEBYTECODE=1 \
         -v "$SCRIPT_DIR:/workspace" \
@@ -60,6 +62,8 @@ if [ $# -eq 0 ]; then
         /bin/bash
 else
     docker run --rm $DOCKER_FLAGS \
+        --cap-add=NET_ADMIN \
+        --cap-add=NET_RAW \
         --user "$(id -u):$(id -g)" \
         -e PYTHONDONTWRITEBYTECODE=1 \
         -v "$SCRIPT_DIR:/workspace" \
