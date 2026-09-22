@@ -4,6 +4,7 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
     HOME=/tmp
 
 # Install core runtime dependencies: Python 3, Node.js (via NodeSource 20 LTS), and network tools
