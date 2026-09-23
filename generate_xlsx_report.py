@@ -97,29 +97,31 @@ class ProductUtils:
     @staticmethod
     def get_product_name(product:str) -> str:
         """Returns a beautified product name and version"""
+        v = re.search(r'([\d.]+)', product)
+        ver = (' ' + v.group(1)) if v else ''
         # set the beautified name and version
         if 'connext' in product.lower() and 'micro' in product.lower():
-            return 'Connext DDS Micro ' + re.search(r'([\d.]+)', product).group(1)
+            return f'Connext DDS Micro{ver}'.strip()
         if 'connext' in product.lower():
-            return 'Connext DDS ' + re.search(r'([\d.]+)', product).group(1)
+            return f'Connext DDS{ver}'.strip()
         elif 'opendds' in product.lower():
-            return 'OpenDDS ' + re.search(r'([\d.]+)', product).group(1)
+            return f'OpenDDS{ver}'.strip()
         elif 'coredx' in product.lower():
-            return 'CoreDX DDS ' + re.search(r'([\d.]+)', product).group(1)
+            return f'CoreDX DDS{ver}'.strip()
         elif 'intercom' in product.lower():
-            return 'InterCOM DDS ' + re.search(r'([\d.]+)', product).group(1)
+            return f'InterCOM DDS{ver}'.strip()
         elif 'fastdds' in product.lower():
-            return 'FastDDS ' + re.search(r'([\d.]+)', product).group(1)
+            return f'FastDDS{ver}'.strip()
         elif 'dust_dds' in product.lower():
-            return 'Dust DDS ' + re.search(r'([\d.]+)', product).group(1)
+            return f'Dust DDS{ver}'.strip()
         elif 'hdds' in product.lower():
-            return 'HDDS ' + re.search(r'([\d.]+)', product).group(1)
+            return f'HDDS{ver}'.strip()
         elif 'cyclone' in product.lower():
-            return 'Cyclone DDS ' + re.search(r'([\d.]+)', product).group(1)
+            return f'Cyclone DDS{ver}'.strip()
         elif 'zzdds' in product.lower():
-            return 'Zenzen DDS ' + re.search(r'([\d.]+)', product).group(1)
+            return f'Zenzen DDS{ver}'.strip()
         else:
-            raise RuntimeError('Impossible to get product name: ' + product)
+            return product
 
 
 class JunitAggregatedData:
@@ -259,8 +261,12 @@ class JunitData:
             # get beautified publisher and subscriber names from the test suite
             # name
             product_names = re.search(r'([\S]+)\-\-\-([\S]+)', suite.name)
-            publisher_name = ProductUtils.get_product_name(product_names.group(1))
-            subscriber_name = ProductUtils.get_product_name(product_names.group(2))
+            if product_names:
+                publisher_name = ProductUtils.get_product_name(product_names.group(1))
+                subscriber_name = ProductUtils.get_product_name(product_names.group(2))
+            else:
+                publisher_name = ProductUtils.get_product_name(suite.name)
+                subscriber_name = ProductUtils.get_product_name(suite.name)
 
             # for each test case in the test suite, fill out the dictionaries
             # that contains information about the product as publisher and
@@ -270,7 +276,8 @@ class JunitData:
                 is_pub_unsupported = False
                 is_sub_unsupported = False
                 status = None
-                test_name = re.search(r'((?:Test_)[\S]+_\d+)', case.name).group(1)
+                m_test = re.search(r'((?:Test_)[\S]+_\d+)', case.name)
+                test_name = m_test.group(1) if m_test else case.name
 
                 # count number of unsupported tests for the summary
                 # result array is not empty and the message contains 'UNSUPPORTED_FEATURE'

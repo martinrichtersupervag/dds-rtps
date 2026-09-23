@@ -35,23 +35,59 @@ jobs:
       id: parse_inputs
       run: |
         python3 -c "
-        import json, os
+        import json, os, ast
 
         ALL_DDS = ['connext_dds', 'dust_dds', 'eprosima_fastdds', 'intercom_dds', 'opendds', 'toc_coredx_dds', 'hdds', 'eclipse_cyclone', 'zzdds']
+
+        ALIAS_MAP = {
+            'connext': 'connext_dds',
+            'connextdds': 'connext_dds',
+            'rti': 'connext_dds',
+            'dust': 'dust_dds',
+            'dustdds': 'dust_dds',
+            'fastdds': 'eprosima_fastdds',
+            'fast_dds': 'eprosima_fastdds',
+            'eprosima': 'eprosima_fastdds',
+            'intercom': 'intercom_dds',
+            'intercomdds': 'intercom_dds',
+            'opendds': 'opendds',
+            'coredx': 'toc_coredx_dds',
+            'toc_coredx': 'toc_coredx_dds',
+            'hdds': 'hdds',
+            'cyclone': 'eclipse_cyclone',
+            'cyclonedds': 'eclipse_cyclone',
+            'eclipse_cyclone': 'eclipse_cyclone',
+            'zzdds': 'zzdds'
+        }
+
+        def resolve_item(x):
+            clean = str(x).strip().strip('\'\"[]').lower()
+            return ALIAS_MAP.get(clean, clean)
 
         def parse_input(val):
             val = (val or '').strip()
             if not val or val.lower() == 'all':
                 return ALL_DDS
+            raw_items = []
             if val.startswith('[') and val.endswith(']'):
                 try:
                     res = json.loads(val)
                     if isinstance(res, list) and res:
-                        return res
+                        raw_items = res
                 except Exception:
                     pass
-            items = [x.strip().strip('\"\'') for x in val.replace(',', ' ').split() if x.strip()]
-            return items if items else ALL_DDS
+                if not raw_items:
+                    try:
+                        res = ast.literal_eval(val)
+                        if isinstance(res, (list, tuple, set)) and res:
+                            raw_items = list(res)
+                    except Exception:
+                        pass
+            if not raw_items:
+                cleaned = val.replace('[', ' ').replace(']', ' ').replace(',', ' ')
+                raw_items = [x.strip().strip('\'\"') for x in cleaned.split() if x.strip().strip('\'\"')]
+            resolved = [resolve_item(x) for x in raw_items if resolve_item(x)]
+            return resolved if resolved else ALL_DDS
 
         pubs = parse_input('''${{ github.event.inputs.publishers }}''')
         subs = parse_input('''${{ github.event.inputs.subscribers }}''')
@@ -66,8 +102,8 @@ jobs:
             f.write(f'publishers={pub_json}\n')
             f.write(f'subscribers={sub_json}\n')
         " || {
-          echo "publishers=${{ github.event.inputs.publishers }}" >> $GITHUB_OUTPUT
-          echo "subscribers=${{ github.event.inputs.subscribers }}" >> $GITHUB_OUTPUT
+          echo 'publishers=["connext_dds","dust_dds","eprosima_fastdds","intercom_dds","opendds","toc_coredx_dds","hdds","eclipse_cyclone","zzdds"]' >> $GITHUB_OUTPUT
+          echo 'subscribers=["connext_dds","dust_dds","eprosima_fastdds","intercom_dds","opendds","toc_coredx_dds","hdds","eclipse_cyclone","zzdds"]' >> $GITHUB_OUTPUT
         }
     - name: Upload timestamp file
       uses: actions/upload-artifact@v7
@@ -134,11 +170,29 @@ jobs:
           echo "Running in GitHub-hosted environment: executing directly..."
           python3 interoperability_report.py --publisher $publisher_exe --subscriber $subscriber_exe --output-name $output_file $extra_args
         fi
+    - name: Ensure test report exists
+      if: always()
+      run: |
+        output_file="junit_report-${{ matrix.publisher }}-${{ matrix.subscriber }}.xml"
+        if [ ! -f "$output_file" ]; then
+          echo "Warning: $output_file was not created. Generating fallback failure report..."
+          python3 -c "
+          import junitparser
+          suite = junitparser.TestSuite('${{ matrix.publisher }}---${{ matrix.subscriber }}')
+          case = junitparser.TestCase('Test_Execution_1')
+          case.result = [junitparser.Failure('Test execution failed or executable was not found')]
+          suite.add_testcase(case)
+          xml = junitparser.JUnitXml()
+          xml.add_testsuite(suite)
+          xml.write('$output_file')
+          "
+        fi
     - name: Download timestamp
       uses: actions/download-artifact@v8
       with:
         name: timestamp
     - name: Upload report
+      if: always()
       uses: actions/upload-artifact@v7
       with:
         name: junit_report-${{ matrix.publisher }}-${{ matrix.subscriber }}
@@ -150,6 +204,7 @@ jobs:
   generate_report:
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     needs: run_tests
+    if: always()
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -171,9 +226,7 @@ jobs:
           if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ]; then
             ./run_in_docker.sh ./generate_reports.sh "$RUNNER_VAL"
           else
-            python3 -m junitparser merge *.xml junit_interoperability_report.xml
-            python3 generate_xlsx_report.py --input junit_interoperability_report.xml --output interoperability_report.xlsx --runner "$RUNNER_VAL"
-            npx xunit-viewer --results=./junit_interoperability_report.xml --output=./index.html
+            ./generate_reports.sh "$RUNNER_VAL"
           fi
       - name: Download timestamp
         uses: actions/download-artifact@v8

@@ -17,9 +17,13 @@ for f in *.xml; do
 done
 shopt -u nullglob
 
-if [ ${#reports_to_merge[@]} -gt 0 ]; then
-    python3 -m junitparser merge "${reports_to_merge[@]}" junit_interoperability_report.xml
+if [ ${#reports_to_merge[@]} -eq 0 ]; then
+    echo "ERROR: No JUnit XML test reports found to merge in $(pwd)!" >&2
+    echo "Please check that upstream test execution jobs ran and produced test reports." >&2
+    exit 1
 fi
+
+python3 -m junitparser merge "${reports_to_merge[@]}" junit_interoperability_report.xml
 
 RUNNER_ARG=""
 if [ -n "$1" ]; then
