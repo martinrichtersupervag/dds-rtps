@@ -1,32 +1,81 @@
 name: 1 - Run Interoperability Tests
-run-name: Run Interoperability Tests
+run-name: Run Interoperability Tests (${{ inputs.runner || 'ubuntu-latest' }})
 on:
   workflow_dispatch:
     inputs:
       publishers:
-        description: Publishers to use
+        description: 'Publishers to use (JSON array, comma-separated list, or "all")'
         type: string
         default: '["connext_dds","dust_dds","eprosima_fastdds","intercom_dds","opendds","toc_coredx_dds", "hdds", "eclipse_cyclone", "zzdds"]'
       subscribers:
-        description: Subscribers to use
+        description: 'Subscribers to use (JSON array, comma-separated list, or "all")'
         type: string
         default: '["connext_dds","dust_dds","eprosima_fastdds","intercom_dds","opendds","toc_coredx_dds", "hdds", "eclipse_cyclone", "zzdds"]'
       runner:
-        description: Runner to use
-        type: string
+        description: 'Runner environment'
+        required: true
         default: 'ubuntu-latest'
+        type: choice
+        options:
+          - ubuntu-latest
+          - self-hosted
+
 jobs:
   generate_timestamp:
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
+    outputs:
+      publishers: ${{ steps.parse_inputs.outputs.publishers }}
+      subscribers: ${{ steps.parse_inputs.outputs.subscribers }}
     steps:
-    - name: Generate timestamp file
-      run: date '+%Y-%m-%d-%H_%M_%S' > timestamp
+    - name: Generate timestamp and runner_env files
+      run: |
+        date '+%Y-%m-%d-%H_%M_%S' > timestamp
+        echo "${{ inputs.runner || 'ubuntu-latest' }}" > runner_env
+    - name: Parse publisher and subscriber inputs
+      id: parse_inputs
+      run: |
+        python3 -c "
+        import json, os
+
+        ALL_DDS = ['connext_dds', 'dust_dds', 'eprosima_fastdds', 'intercom_dds', 'opendds', 'toc_coredx_dds', 'hdds', 'eclipse_cyclone', 'zzdds']
+
+        def parse_input(val):
+            val = (val or '').strip()
+            if not val or val.lower() == 'all':
+                return ALL_DDS
+            if val.startswith('[') and val.endswith(']'):
+                try:
+                    res = json.loads(val)
+                    if isinstance(res, list) and res:
+                        return res
+                except Exception:
+                    pass
+            items = [x.strip().strip('\"\'') for x in val.replace(',', ' ').split() if x.strip()]
+            return items if items else ALL_DDS
+
+        pubs = parse_input('''${{ github.event.inputs.publishers }}''')
+        subs = parse_input('''${{ github.event.inputs.subscribers }}''')
+
+        pub_json = json.dumps(pubs)
+        sub_json = json.dumps(subs)
+
+        print(f'Parsed publishers: {pub_json}')
+        print(f'Parsed subscribers: {sub_json}')
+
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f'publishers={pub_json}\n')
+            f.write(f'subscribers={sub_json}\n')
+        " || {
+          echo "publishers=${{ github.event.inputs.publishers }}" >> $GITHUB_OUTPUT
+          echo "subscribers=${{ github.event.inputs.subscribers }}" >> $GITHUB_OUTPUT
+        }
     - name: Upload timestamp file
       uses: actions/upload-artifact@v7
       with:
         name: timestamp
         path: |
           ./timestamp
+          ./runner_env
 
   run_tests:
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
@@ -34,8 +83,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        publisher: ${{ fromJson(github.event.inputs.publishers) }}
-        subscriber: ${{ fromJson(github.event.inputs.subscribers) }}
+        publisher: ${{ fromJson(needs.generate_timestamp.outputs.publishers) }}
+        subscriber: ${{ fromJson(needs.generate_timestamp.outputs.subscribers) }}
 
     steps:
     - name: Checkout sources
@@ -96,6 +145,7 @@ jobs:
         path: |
           ./junit_report-${{ matrix.publisher }}-${{ matrix.subscriber }}.xml
           ./timestamp
+          ./runner_env
 
   generate_report:
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
@@ -117,17 +167,31 @@ jobs:
         run: pip install --requirement requirements.txt
       - name: Generate report files
         run: |
+          RUNNER_VAL="${{ inputs.runner || 'ubuntu-latest' }}"
           if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ]; then
-            ./run_in_docker.sh ./generate_reports.sh
+            ./run_in_docker.sh ./generate_reports.sh "$RUNNER_VAL"
           else
             python3 -m junitparser merge *.xml junit_interoperability_report.xml
-            python3 generate_xlsx_report.py --input junit_interoperability_report.xml --output interoperability_report.xlsx
+            python3 generate_xlsx_report.py --input junit_interoperability_report.xml --output interoperability_report.xlsx --runner "$RUNNER_VAL"
             npx xunit-viewer --results=./junit_interoperability_report.xml --output=./index.html
           fi
       - name: Download timestamp
         uses: actions/download-artifact@v8
         with:
           name: timestamp
+      - name: Publish Summary to GitHub Actions
+        if: always()
+        run: |
+          echo "## 📊 Interoperability Tests Run Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "| :--- | :--- |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Hosted Machine / Runner** | \`${{ inputs.runner || 'ubuntu-latest' }}\` |" >> $GITHUB_STEP_SUMMARY
+          if [ -f timestamp ]; then
+            echo "| **Timestamp** | \`$(cat timestamp | tr -d '\r\n')\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "| **Triggered By** | @${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Workflow** | ${{ github.workflow }} |" >> $GITHUB_STEP_SUMMARY
       - name: Attach the report
         if: always()
         uses: actions/upload-artifact@v7
@@ -138,3 +202,4 @@ jobs:
             ./junit_interoperability_report.xml
             ./interoperability_report.xlsx
             ./timestamp
+            ./runner_env

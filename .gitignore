@@ -73,8 +73,9 @@ discovery_summary.json
 timestamp
 archive_reports/
 
-# Do not ignore templates
+# Do not ignore templates and dispatcher
 !doc/_templates/*.html
+!workflow_dispatcher.html
 
 .DS_Store
 core

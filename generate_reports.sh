@@ -21,8 +21,17 @@ if [ ${#reports_to_merge[@]} -gt 0 ]; then
     python3 -m junitparser merge "${reports_to_merge[@]}" junit_interoperability_report.xml
 fi
 
+RUNNER_ARG=""
+if [ -n "$1" ]; then
+    RUNNER_ARG="--runner $1"
+elif [ -f runner_env ]; then
+    RUNNER_ARG="--runner $(cat runner_env | tr -d '\r\n')"
+elif [ -n "$RUNNER_ENVIRONMENT" ]; then
+    RUNNER_ARG="--runner $RUNNER_ENVIRONMENT"
+fi
+
 echo "[2/3] Generating Excel report interoperability_report.xlsx..."
-python3 generate_xlsx_report.py --input junit_interoperability_report.xml --output interoperability_report.xlsx
+python3 generate_xlsx_report.py --input junit_interoperability_report.xml --output interoperability_report.xlsx $RUNNER_ARG
 
 echo "[3/3] Generating HTML report index.html..."
 if command -v xunit-viewer &> /dev/null; then

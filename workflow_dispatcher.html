@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RTPS Interoperability Test Dispatcher</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-gradient: radial-gradient(circle at 15% 15%, #181c2e 0%, #0d101d 100%);
+      --card-bg: rgba(26, 32, 53, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-hover-border: rgba(99, 102, 241, 0.4);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-light: rgba(99, 102, 241, 0.15);
+      --accent: #06b6d4;
+      --accent-hover: #0891b2;
+      --success: #10b981;
+      --success-light: rgba(16, 185, 129, 0.15);
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --item-bg: rgba(15, 23, 42, 0.6);
+      --item-border: rgba(255, 255, 255, 0.06);
+      --item-selected-bg: rgba(99, 102, 241, 0.18);
+      --item-selected-border: #6366f1;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+      --shadow-sm: 0 2px 4px rgba(0,0,0,0.2);
+      --shadow-md: 0 8px 24px rgba(0,0,0,0.3);
+      --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.25);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 2.5rem 1.5rem;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      max-width: 1200px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+    }
+
+    /* Header */
+    header {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-xl);
+      padding: 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1.5rem;
+      box-shadow: var(--shadow-md);
+    }
+
+    .header-title-box h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .header-title-box p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-top: 0.35rem;
+    }
+
+    .header-badges {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .stat-badge {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      padding: 0.6rem 1.2rem;
+      text-align: center;
+    }
+
+    .stat-badge .stat-value {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .stat-badge .stat-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+    }
+
+    /* Runner Card */
+    .runner-card {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .runner-info h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .runner-info p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    .runner-toggle-group {
+      display: flex;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 0.3rem;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--card-border);
+      gap: 0.3rem;
+    }
+
+    .runner-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.6rem 1.2rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+
+    .runner-btn:hover {
+      color: var(--text-main);
+    }
+
+    .runner-btn.active {
+      background: var(--primary);
+      color: #fff;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Mode selector */
+    .mode-selector {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-left: auto;
+    }
+
+    .mode-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .mode-switch {
+      display: flex;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 0.25rem;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--card-border);
+    }
+
+    .mode-switch button {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.35rem 0.75rem;
+      font-size: 0.8rem;
+      border-radius: calc(var(--radius-sm) - 2px);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .mode-switch button.active {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* Grid for Boxes */
+    .selection-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 2rem;
+    }
+
+    .selection-box {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-xl);
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      box-shadow: var(--shadow-md);
+      transition: border-color 0.2s ease;
+    }
+
+    .selection-box:hover {
+      border-color: var(--card-hover-border);
+    }
+
+    .box-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 1rem;
+    }
+
+    .box-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .box-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .badge-count {
+      background: var(--primary-light);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .box-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .btn-action {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 0.4rem 0.8rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-action:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .btn-action.btn-select-all:hover {
+      background: var(--success-light);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.4);
+    }
+
+    .btn-action.btn-deselect-all:hover {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    /* DDS List */
+    .items-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      max-height: 480px;
+      overflow-y: auto;
+      padding-right: 0.25rem;
+    }
+
+    .items-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    .items-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .items-list::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    .dds-item {
+      background: var(--item-bg);
+      border: 1px solid var(--item-border);
+      border-radius: var(--radius-md);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .dds-item:hover {
+      background: rgba(30, 41, 59, 0.8);
+      border-color: rgba(255, 255, 255, 0.12);
+      transform: translateX(2px);
+    }
+
+    .dds-item.selected {
+      background: var(--item-selected-bg);
+      border-color: var(--item-selected-border);
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.15);
+    }
+
+    .dds-control {
+      position: relative;
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 2px solid var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+
+    .dds-item.radio .dds-control {
+      border-radius: 50%;
+    }
+
+    .dds-item.selected .dds-control {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    .dds-control svg {
+      width: 12px;
+      height: 12px;
+      stroke: #fff;
+      stroke-width: 3;
+      fill: none;
+      opacity: 0;
+      transform: scale(0.5);
+      transition: all 0.2s ease;
+    }
+
+    .dds-item.selected .dds-control svg {
+      opacity: 1;
+      transform: scale(1);
+    }
+
+    .dds-item.radio.selected .dds-control svg {
+      display: none;
+    }
+
+    .dds-item.radio.selected .dds-control::after {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: #fff;
+      border-radius: 50%;
+    }
+
+    .dds-text {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+
+    .dds-name {
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .dds-company {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+    }
+
+    /* Output & Action Section */
+    .output-section {
+      background: var(--card-bg);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-xl);
+      padding: 1.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      box-shadow: var(--shadow-md);
+    }
+
+    .output-header h3 {
+      font-size: 1.2rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .output-header p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    .code-preview-group {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .code-card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .code-card-header {
+      padding: 0.6rem 1rem;
+      background: rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .code-card-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .btn-copy {
+      background: transparent;
+      border: none;
+      color: var(--primary);
+      cursor: pointer;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn-copy:hover {
+      background: var(--primary-light);
+      color: #fff;
+    }
+
+    .code-card pre {
+      padding: 0.85rem 1rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: #38bdf8;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.4;
+      flex: 1;
+    }
+
+    /* Trigger Card */
+    .dispatch-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.25rem;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--card-border);
+      padding: 1.25rem;
+      border-radius: var(--radius-lg);
+    }
+
+    .dispatch-inputs {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      flex: 1;
+    }
+
+    .input-field {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 0.65rem 1rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .input-field:focus {
+      border-color: var(--primary);
+    }
+
+    .input-repo {
+      width: 250px;
+    }
+
+    .input-token {
+      width: 260px;
+    }
+
+    .btn-launch {
+      background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);
+      border: none;
+      color: #fff;
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 0.75rem 1.6rem;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      box-shadow: var(--shadow-glow);
+      transition: all 0.2s ease;
+    }
+
+    .btn-launch:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+    }
+
+    .btn-launch:active {
+      transform: translateY(0);
+    }
+
+    #status-banner {
+      display: none;
+      padding: 0.8rem 1.2rem;
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+    }
+    #status-banner.success {
+      display: block;
+      background: var(--success-light);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+    #status-banner.error {
+      display: block;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #f87171;
+    }
+    #status-banner a {
+      color: #fff;
+      text-decoration: underline;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <div class="header-title-box">
+      <h1>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+          <polyline points="2 17 12 22 22 17"></polyline>
+          <polyline points="2 12 12 17 22 12"></polyline>
+        </svg>
+        RTPS Interoperability Test Dispatcher
+      </h1>
+      <p>Configure test matrix, choose runner machine, and dispatch GitHub Actions seamlessly.</p>
+    </div>
+
+    <div class="header-badges">
+      <div class="stat-badge">
+        <div class="stat-value" id="matrix-runs-count">81</div>
+        <div class="stat-label">Total Pairs</div>
+      </div>
+      <div class="stat-badge">
+        <div class="stat-value" id="badge-runner-display">ubuntu-latest</div>
+        <div class="stat-label">Hosted Machine</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Runner & Mode Selector Card -->
+  <div class="runner-card">
+    <div class="runner-info">
+      <h2>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+          <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+          <line x1="6" y1="6" x2="6.01" y2="6"></line>
+          <line x1="6" y1="18" x2="6.01" y2="18"></line>
+        </svg>
+        Runner Environment (Hosted Machine)
+      </h2>
+      <p>Select whether to execute on GitHub cloud runners or your self-hosted Docker container.</p>
+    </div>
+
+    <div class="runner-toggle-group" id="runner-group">
+      <button class="runner-btn active" id="btn-runner-ubuntu" onclick="setRunner('ubuntu-latest')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
+        </svg>
+        ubuntu-latest (GitHub-hosted)
+      </button>
+      <button class="runner-btn" id="btn-runner-self" onclick="setRunner('self-hosted')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+          <line x1="8" y1="21" x2="16" y2="21"></line>
+          <line x1="12" y1="17" x2="12" y2="21"></line>
+        </svg>
+        self-hosted (Isolated Docker)
+      </button>
+    </div>
+
+    <div class="mode-selector">
+      <span class="mode-label">Selection Mode:</span>
+      <div class="mode-switch">
+        <button id="mode-checkbox" class="active" onclick="setMode('matrix')">Matrix (Multi)</button>
+        <button id="mode-radio" onclick="setMode('single')">Pair (1-to-1)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Selection Grid -->
+  <div class="selection-grid">
+
+    <!-- Publisher Box -->
+    <div class="selection-box" id="publisher-box">
+      <div class="box-header">
+        <div class="box-title-wrap">
+          <span class="box-title">Publishers</span>
+          <span class="badge-count" id="pub-count">9 / 9</span>
+        </div>
+        <div class="box-actions">
+          <button class="btn-action btn-select-all" id="pub-select-all" onclick="selectAll('pub')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Select All
+          </button>
+          <button class="btn-action btn-deselect-all" id="pub-deselect-all" onclick="deselectAll('pub')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            Deselect All
+          </button>
+        </div>
+      </div>
+
+      <div class="items-list" id="pub-items-list">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+
+    <!-- Subscriber Box -->
+    <div class="selection-box" id="subscriber-box">
+      <div class="box-header">
+        <div class="box-title-wrap">
+          <span class="box-title">Subscribers</span>
+          <span class="badge-count" id="sub-count">9 / 9</span>
+        </div>
+        <div class="box-actions">
+          <button class="btn-action btn-select-all" id="sub-select-all" onclick="selectAll('sub')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Select All
+          </button>
+          <button class="btn-action btn-deselect-all" id="sub-deselect-all" onclick="deselectAll('sub')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            Deselect All
+          </button>
+        </div>
+      </div>
+
+      <div class="items-list" id="sub-items-list">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Output and Execution Card -->
+  <div class="output-section">
+    <div class="output-header">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="16 18 22 12 16 6"></polyline>
+          <polyline points="8 6 2 12 8 18"></polyline>
+        </svg>
+        Generated Workflow Parameters
+      </h3>
+      <p>Use these values in GitHub Actions web UI or copy the command to run via GitHub CLI.</p>
+    </div>
+
+    <div class="code-preview-group">
+      <!-- Publishers JSON -->
+      <div class="code-card">
+        <div class="code-card-header">
+          <span class="code-card-title">Publishers Input Value</span>
+          <button class="btn-copy" onclick="copyToClipboard('json-pub', this)">Copy JSON</button>
+        </div>
+        <pre id="json-pub">["connext_dds","dust_dds","eprosima_fastdds","intercom_dds","opendds","toc_coredx_dds","hdds","eclipse_cyclone","zzdds"]</pre>
+      </div>
+
+      <!-- Subscribers JSON -->
+      <div class="code-card">
+        <div class="code-card-header">
+          <span class="code-card-title">Subscribers Input Value</span>
+          <button class="btn-copy" onclick="copyToClipboard('json-sub', this)">Copy JSON</button>
+        </div>
+        <pre id="json-sub">["connext_dds","dust_dds","eprosima_fastdds","intercom_dds","opendds","toc_coredx_dds","hdds","eclipse_cyclone","zzdds"]</pre>
+      </div>
+    </div>
+
+    <!-- CLI Command -->
+    <div class="code-card">
+      <div class="code-card-header">
+        <span class="code-card-title">GitHub CLI Command (gh workflow run)</span>
+        <button class="btn-copy" onclick="copyToClipboard('cli-command', this)">Copy Command</button>
+      </div>
+      <pre id="cli-command">gh workflow run "1 - Run Interoperability Tests" -f runner="ubuntu-latest" -f publishers='["connext_dds","dust_dds","eprosima_fastdds","intercom_dds","opendds","toc_coredx_dds","hdds","eclipse_cyclone","zzdds"]' -f subscribers='["connext_dds","dust_dds","eprosima_fastdds","intercom_dds","opendds","toc_coredx_dds","hdds","eclipse_cyclone","zzdds"]'</pre>
+    </div>
+
+    <!-- Direct API Trigger Bar -->
+    <div class="dispatch-bar">
+      <div class="dispatch-inputs">
+        <input type="text" id="gh-repo" class="input-field input-repo" placeholder="owner/repo (e.g. user/dds-rtps)" value="martinrichtersupervag/dds-rtps">
+        <input type="password" id="gh-token" class="input-field input-token" placeholder="GitHub PAT token (optional)" title="GitHub Personal Access Token with repo/actions scope">
+      </div>
+      <button class="btn-launch" id="btn-trigger" onclick="dispatchWorkflow()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"></polygon>
+        </svg>
+        Trigger Workflow on GitHub
+      </button>
+    </div>
+
+    <div id="status-banner"></div>
+  </div>
+
+</div>
+
+<script>
+  const DDS_DATA = [
+    { id: 'connext_dds', name: 'connext_dds', company: 'Real-Time Innovations (RTI)' },
+    { id: 'dust_dds', name: 'dust_dds', company: 'S2E Software Systems' },
+    { id: 'eprosima_fastdds', name: 'eprosima_fastdds', company: 'eProsima FastDDS' },
+    { id: 'intercom_dds', name: 'intercom_dds', company: 'Kongsberg InterCOM' },
+    { id: 'opendds', name: 'opendds', company: 'OpenDDS Foundation' },
+    { id: 'toc_coredx_dds', name: 'toc_coredx_dds', company: 'Twin Oaks Computing CoreDX' },
+    { id: 'hdds', name: 'hdds', company: 'Naskel HDDS' },
+    { id: 'eclipse_cyclone', name: 'eclipse_cyclone', company: 'Eclipse Foundation Cyclone' },
+    { id: 'zzdds', name: 'zzdds', company: 'Zenzen IoT DDS' }
+  ];
+
+  let selectedPublishers = new Set(DDS_DATA.map(d => d.id));
+  let selectedSubscribers = new Set(DDS_DATA.map(d => d.id));
+  let runnerEnvironment = 'ubuntu-latest';
+  let selectionMode = 'matrix'; // 'matrix' (checkboxes) or 'single' (radio)
+
+  // Load saved token & repo
+  const savedToken = localStorage.getItem('dds_gh_token');
+  if (savedToken) document.getElementById('gh-token').value = savedToken;
+  const savedRepo = localStorage.getItem('dds_gh_repo');
+  if (savedRepo) document.getElementById('gh-repo').value = savedRepo;
+
+  function renderList(type, containerId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+
+    const selectedSet = type === 'pub' ? selectedPublishers : selectedSubscribers;
+
+    DDS_DATA.forEach(item => {
+      const isSelected = selectedSet.has(item.id);
+      const div = document.createElement('div');
+      div.className = `dds-item ${selectionMode === 'single' ? 'radio' : ''} ${isSelected ? 'selected' : ''}`;
+      div.id = `${type}-${item.id}`;
+      div.onclick = () => toggleItem(type, item.id);
+
+      div.innerHTML = `
+        <div class="dds-control">
+          <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <div class="dds-text">
+          <span class="dds-name">${item.name}</span>
+          <span class="dds-company">${item.company}</span>
+        </div>
+      `;
+      container.appendChild(div);
+    });
+
+    updateCounters();
+    updateOutput();
+  }
+
+  function toggleItem(type, id) {
+    const selectedSet = type === 'pub' ? selectedPublishers : selectedSubscribers;
+
+    if (selectionMode === 'single') {
+      selectedSet.clear();
+      selectedSet.add(id);
+    } else {
+      if (selectedSet.has(id)) {
+        if (selectedSet.size > 1) {
+          selectedSet.delete(id);
+        }
+      } else {
+        selectedSet.add(id);
+      }
+    }
+
+    renderList('pub', 'pub-items-list');
+    renderList('sub', 'sub-items-list');
+  }
+
+  function selectAll(type) {
+    if (selectionMode === 'single') return;
+    const selectedSet = type === 'pub' ? selectedPublishers : selectedSubscribers;
+    DDS_DATA.forEach(d => selectedSet.add(d.id));
+    renderList(type, type === 'pub' ? 'pub-items-list' : 'sub-items-list');
+  }
+
+  function deselectAll(type) {
+    if (selectionMode === 'single') return;
+    const selectedSet = type === 'pub' ? selectedPublishers : selectedSubscribers;
+    selectedSet.clear();
+    // Keep at least 1 item or leave empty
+    renderList(type, type === 'pub' ? 'pub-items-list' : 'sub-items-list');
+  }
+
+  function setRunner(runner) {
+    runnerEnvironment = runner;
+    document.getElementById('btn-runner-ubuntu').classList.toggle('active', runner === 'ubuntu-latest');
+    document.getElementById('btn-runner-self').classList.toggle('active', runner === 'self-hosted');
+    document.getElementById('badge-runner-display').textContent = runner;
+    updateOutput();
+  }
+
+  function setMode(mode) {
+    selectionMode = mode;
+    document.getElementById('mode-checkbox').classList.toggle('active', mode === 'matrix');
+    document.getElementById('mode-radio').classList.toggle('active', mode === 'single');
+
+    if (mode === 'single') {
+      // Pick first or keep single
+      if (selectedPublishers.size > 1) {
+        const first = Array.from(selectedPublishers)[0];
+        selectedPublishers.clear();
+        selectedPublishers.add(first);
+      }
+      if (selectedSubscribers.size > 1) {
+        const first = Array.from(selectedSubscribers)[0];
+        selectedSubscribers.clear();
+        selectedSubscribers.add(first);
+      }
+    }
+
+    renderList('pub', 'pub-items-list');
+    renderList('sub', 'sub-items-list');
+  }
+
+  function updateCounters() {
+    document.getElementById('pub-count').textContent = `${selectedPublishers.size} / ${DDS_DATA.length}`;
+    document.getElementById('sub-count').textContent = `${selectedSubscribers.size} / ${DDS_DATA.length}`;
+    const totalPairs = selectedPublishers.size * selectedSubscribers.size;
+    document.getElementById('matrix-runs-count').textContent = totalPairs;
+  }
+
+  function updateOutput() {
+    const pubArr = Array.from(selectedPublishers);
+    const subArr = Array.from(selectedSubscribers);
+
+    const pubJson = JSON.stringify(pubArr);
+    const subJson = JSON.stringify(subArr);
+
+    document.getElementById('json-pub').textContent = pubJson;
+    document.getElementById('json-sub').textContent = subJson;
+
+    const cliCmd = `gh workflow run "1 - Run Interoperability Tests" -f runner="${runnerEnvironment}" -f publishers='${pubJson}' -f subscribers='${subJson}'`;
+    document.getElementById('cli-command').textContent = cliCmd;
+  }
+
+  function copyToClipboard(elementId, btn) {
+    const text = document.getElementById(elementId).textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const origText = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.style.color = '#34d399';
+      setTimeout(() => {
+        btn.textContent = origText;
+        btn.style.color = '';
+      }, 1800);
+    });
+  }
+
+  async function dispatchWorkflow() {
+    const repo = document.getElementById('gh-repo').value.trim();
+    const token = document.getElementById('gh-token').value.trim();
+    const banner = document.getElementById('status-banner');
+
+    if (!repo) {
+      alert('Please enter a GitHub repository (e.g. owner/dds-rtps).');
+      return;
+    }
+
+    if (!token) {
+      alert('Please enter a GitHub Personal Access Token to dispatch via API, or copy the gh command above.');
+      return;
+    }
+
+    localStorage.setItem('dds_gh_token', token);
+    localStorage.setItem('dds_gh_repo', repo);
+
+    banner.className = '';
+    banner.style.display = 'block';
+    banner.textContent = 'Sending dispatch request to GitHub Actions API...';
+
+    const pubJson = JSON.stringify(Array.from(selectedPublishers));
+    const subJson = JSON.stringify(Array.from(selectedSubscribers));
+
+    try {
+      const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/1_run_interoperability_tests.yml/dispatches`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/vnd.github+json',
+          'Authorization': `Bearer ${token}`,
+          'X-GitHub-Api-Version': '2022-11-28'
+        },
+        body: JSON.stringify({
+          ref: 'master',
+          inputs: {
+            runner: runnerEnvironment,
+            publishers: pubJson,
+            subscribers: subJson
+          }
+        })
+      });
+
+      if (res.status === 204) {
+        banner.className = 'success';
+        banner.innerHTML = `Workflow triggered successfully! <a href="https://github.com/${repo}/actions" target="_blank" rel="noopener">Open GitHub Actions Page ↗</a>`;
+      } else {
+        const err = await res.json().catch(() => ({ message: res.statusText }));
+        banner.className = 'error';
+        banner.textContent = `Error dispatching workflow (${res.status}): ${err.message || res.statusText}`;
+      }
+    } catch (e) {
+      banner.className = 'error';
+      banner.textContent = `Network error: ${e.message}`;
+    }
+  }
+
+  // Initial render
+  renderList('pub', 'pub-items-list');
+  renderList('sub', 'sub-items-list');
+</script>
+
+</body>
+</html>

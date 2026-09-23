@@ -55,7 +55,7 @@ jobs:
 
           [ -f index.html ] && mv index.html interoperability_report.html
 
-          for file in interoperability_report.html junit_interoperability_report.xml interoperability_report.xlsx timestamp; do
+          for file in interoperability_report.html junit_interoperability_report.xml interoperability_report.xlsx timestamp runner_env; do
             if [ -f "$file" ]; then
               cp "$file" "${file%.*}_$current_date.${file##*.}"
             fi

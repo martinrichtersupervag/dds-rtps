@@ -59,6 +59,12 @@ class XlxsReportArgumentParser:
             type=str,
             metavar='input',
             help='Path to the input file. It should have an xml file extension')
+        gen_opts.add_argument('-r', '--runner',
+            default=None,
+            required=False,
+            type=str,
+            metavar='runner',
+            help='Runner environment or hosted machine (e.g. ubuntu-latest or self-hosted)')
 
         return parser
 
@@ -385,8 +391,9 @@ class XlsxReport:
     __formats: dict = {} # contains the format name and formats objects
     REPO_LINK = 'https://github.com/omg-dds/dds-rtps'
     REPO_DOC = 'https://omg-dds.github.io/dds-rtps/'
+    runner: str = None
 
-    def __init__(self, output: pathlib.Path, data: JunitData):
+    def __init__(self, output: pathlib.Path, data: JunitData, runner: str = None):
         """
         Initializer that receives the JunitData and the output file. This
         adds the formats used to the workbook and the different worksheets
@@ -395,6 +402,7 @@ class XlsxReport:
         # set the default workbook size
         self.workbook.set_size(2000,1500)
         self.__data = data
+        self.runner = runner
         self.add_formats()
         self.create_summary_worksheet()
         self.create_description_worksheet()
@@ -896,6 +904,11 @@ class XlsxReport:
         date_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         worksheet.write(current_row, starting_column + 2, date_time)
 
+        # Add hosted machine / runner
+        current_row += 1
+        worksheet.write(current_row, starting_column + 1, 'Hosted machine')
+        worksheet.write(current_row, starting_column + 2, self.runner if self.runner else 'ubuntu-latest')
+
         # Add repo link
         current_row += 1
         worksheet.write(current_row, starting_column + 1,'Repo')
@@ -1024,11 +1037,25 @@ def main():
         raise RuntimeError('output file already exist or is not pointing to an '
                            + 'xlsl file')
 
+    runner = args.runner
+    if not runner:
+        # Check runner_env file if present in working directory or alongside input
+        for cand in [pathlib.Path('runner_env'), input.parent / 'runner_env']:
+            if cand.is_file():
+                try:
+                    runner = cand.read_text().strip()
+                    if runner:
+                        break
+                except Exception:
+                    pass
+    if not runner:
+        runner = os.environ.get('RUNNER_ENVIRONMENT') or os.environ.get('RUNNER_NAME')
+
     try:
         # generate a JunitData from the file in the input
         junit_data = JunitData(input=input)
         # generate report in the output from the JunitData
-        XlsxReport(output=output, data=junit_data)
+        XlsxReport(output=output, data=junit_data, runner=runner)
     except KeyboardInterrupt:
         print('interrupted by user')
         try:
