@@ -138,13 +138,16 @@ jobs:
       run: |
         mkdir -p zipped_executables
 
-        # 1) Self-hosted local cache – fastest, no network needed
-        if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ] \
-            && [ -d "executables" ] \
-            && [ "$(ls -A executables)" ]; then
-          echo "Using local executables directory."
-          chmod +x executables/* 2>/dev/null || true
-          exit 0
+        # 1) Self-hosted or existing executables – fastest, no network needed
+        if [ "${{ inputs.runner }}" = "self-hosted" ] || [ "${{ runner.environment }}" = "self-hosted" ] || ([ -d "executables" ] && [ "$(ls -A executables)" ]); then
+          if [ -d "executables" ] && [ "$(ls -A executables)" ]; then
+            echo "Using local executables directory."
+            chmod +x executables/* 2>/dev/null || true
+            exit 0
+          else
+            echo "ERROR: Directory 'executables' is missing or empty on self-hosted runner!" >&2
+            exit 1
+          fi
         fi
 
         # 2) Download from omg-dds/dds-rtps with retry (max 5 attempts)
@@ -153,6 +156,7 @@ jobs:
           if gh release download \
               --repo omg-dds/dds-rtps \
               --dir zipped_executables \
+              --pattern '*' \
               --clobber; then
             count=$(find zipped_executables -type f | wc -l)
             if [ "$count" -gt 0 ]; then
@@ -271,7 +275,7 @@ jobs:
       - name: Generate report files
         run: |
           RUNNER_VAL="${{ inputs.runner || 'ubuntu-latest' }}"
-          if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ]; then
+          if [ "${{ inputs.runner }}" = "self-hosted" ] || [ "${{ runner.environment }}" = "self-hosted" ]; then
             ./run_in_docker.sh ./generate_reports.sh "$RUNNER_VAL"
           else
             ./generate_reports.sh "$RUNNER_VAL"
