@@ -126,18 +126,72 @@ jobs:
     steps:
     - name: Checkout sources
       uses: actions/checkout@v6
-    - uses: actions/setup-python@v6
-      if: runner.environment != 'self-hosted'
+
+    # ---------------------------------------------------------
+    # MIRROR-FIRST VENDOR DOWNLOAD + LOCAL CACHE + SHA256 VERIFY
+    # ---------------------------------------------------------
+    - name: Check local vendor cache
+      id: vendor_cache
+      run: |
+        if [ -d "/opt/dds-vendors" ] && [ "$(ls -A /opt/dds-vendors)" ]; then
+          echo "cache=true" >> $GITHUB_OUTPUT
+        else
+          echo "cache=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Download vendor assets from mirror
+      if: steps.vendor_cache.outputs.cache == 'false'
+      id: download_mirror
+      continue-on-error: true
+      uses: robinraju/release-downloader@v1.13
       with:
-        python-version: '3.11.4'
-    - name: Download shape_main executables
+        repository: "martinrichtersupervag/dds-vendor-mirror"
+        latest: true
+        fileName: "*"
+        out-file-path: zipped_executables
+
+    - name: Fallback download from OMG DDS
+      if: steps.vendor_cache.outputs.cache == 'false' && steps.download_mirror.outcome == 'failure'
       uses: robinraju/release-downloader@v1.13
       with:
         repository: "omg-dds/dds-rtps"
         latest: true
         fileName: "*"
         out-file-path: zipped_executables
-        preRelease: false
+
+    - name: Retry vendor downloads (max 5 attempts)
+      if: steps.vendor_cache.outputs.cache == 'false'
+      run: |
+        for i in {1..5}; do
+          count=$(find zipped_executables -type f | wc -l)
+          if [ "$count" -gt 0 ]; then
+            echo "Vendor assets present."
+            break
+          fi
+          echo "Retrying vendor download in 5s (attempt $i)..."
+          sleep 5
+          gh release download --repo martinrichtersupervag/dds-vendor-mirror --dir zipped_executables || true
+        done
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Use local vendor cache
+      if: steps.vendor_cache.outputs.cache == 'true'
+      run: cp -r /opt/dds-vendors/* zipped_executables/
+
+    - name: Verify SHA256 integrity of vendor ZIPs
+      run: |
+        cd zipped_executables
+        for f in *.zip; do
+          echo "Verifying SHA256 for $f"
+          sha256sum "$f"
+        done
+
+    - uses: actions/setup-python@v6
+      if: runner.environment != 'self-hosted'
+      with:
+        python-version: '3.11.4'
+
     - name: Unzip executables
       run: unzip 'zipped_executables/*.zip' -d executables
     - name: Install Python requirements
