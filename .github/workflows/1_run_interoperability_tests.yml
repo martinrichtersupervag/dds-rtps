@@ -128,60 +128,45 @@ jobs:
       uses: actions/checkout@v6
 
     # ---------------------------------------------------------
-    # MIRROR-FIRST VENDOR DOWNLOAD + LOCAL CACHE + SHA256 VERIFY
+    # VENDOR DOWNLOAD: local cache (self-hosted) → omg-dds/dds-rtps (max 5 attempts)
     # ---------------------------------------------------------
-    - name: Check local vendor cache
-      id: vendor_cache
+    - name: Prepare vendor executables
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        # Local /opt/dds-vendors cache is only meaningful on self-hosted runners.
-        # GitHub-hosted (ubuntu-latest) VMs are ephemeral – always download.
+        mkdir -p zipped_executables
+
+        # 1) Self-hosted local cache – fastest, no network needed
         if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ] \
             && [ -d "/opt/dds-vendors" ] \
             && [ "$(ls -A /opt/dds-vendors)" ]; then
-          echo "cache=true" >> $GITHUB_OUTPUT
-        else
-          echo "cache=false" >> $GITHUB_OUTPUT
+          echo "Using local /opt/dds-vendors cache."
+          cp -r /opt/dds-vendors/* zipped_executables/
+          exit 0
         fi
 
-    - name: Download vendor assets from mirror
-      if: steps.vendor_cache.outputs.cache == 'false'
-      id: download_mirror
-      continue-on-error: true
-      uses: robinraju/release-downloader@v1.13
-      with:
-        repository: "martinrichtersupervag/dds-vendor-mirror"
-        latest: true
-        fileName: "*"
-        out-file-path: zipped_executables
-
-    - name: Fallback download from OMG DDS
-      if: steps.vendor_cache.outputs.cache == 'false' && steps.download_mirror.outcome == 'failure'
-      uses: robinraju/release-downloader@v1.13
-      with:
-        repository: "omg-dds/dds-rtps"
-        latest: true
-        fileName: "*"
-        out-file-path: zipped_executables
-
-    - name: Retry vendor downloads (max 5 attempts)
-      if: steps.vendor_cache.outputs.cache == 'false'
-      run: |
+        # 2) Download from omg-dds/dds-rtps with retry (max 5 attempts)
         for i in {1..5}; do
-          count=$(find zipped_executables -type f | wc -l)
-          if [ "$count" -gt 0 ]; then
-            echo "Vendor assets present."
-            break
+          echo "Attempt $i/5: downloading from omg-dds/dds-rtps..."
+          if gh release download \
+              --repo omg-dds/dds-rtps \
+              --dir zipped_executables \
+              --clobber; then
+            count=$(find zipped_executables -type f | wc -l)
+            if [ "$count" -gt 0 ]; then
+              echo "Download OK ($count files)."
+              exit 0
+            fi
           fi
-          echo "Retrying vendor download in 5s (attempt $i)..."
-          sleep 5
-          gh release download --repo martinrichtersupervag/dds-vendor-mirror --dir zipped_executables || true
+          if [ "$i" -lt 5 ]; then
+            echo "Download incomplete, retrying in 5s..."
+            sleep 5
+          fi
         done
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Use local vendor cache
-      if: runner.environment == 'self-hosted' && steps.vendor_cache.outputs.cache == 'true'
-      run: cp -r /opt/dds-vendors/* zipped_executables/
+        echo "ERROR: All download attempts failed." >&2
+        exit 1
+
 
     - name: Verify SHA256 integrity of vendor ZIPs
       run: |
