@@ -138,43 +138,27 @@ jobs:
       run: |
         mkdir -p zipped_executables
 
-        # 1) Self-hosted local executables – check and use directly, no download needed
-        if [ "${{ inputs.runner }}" = "self-hosted" ] || [ "${{ runner.environment }}" = "self-hosted" ]; then
-          mkdir -p executables
-
-          # If executables is empty in runner workspace, copy from host cache
-          if [ -z "$(ls -A executables 2>/dev/null)" ]; then
-            for src_dir in "$HOME/dds-rtps/executables" "/root/dds-rtps/executables" "/opt/vendors" "/opt/dds-vendors"; do
-              if [ -d "$src_dir" ] && [ "$(ls -A "$src_dir" 2>/dev/null)" ]; then
-                echo "Copying vendor executables from $src_dir to ./executables/..."
-                cp -r "$src_dir"/* executables/
-                break
-              fi
-            done
-          fi
-
-          if [ -d "executables" ] && [ "$(ls -A executables 2>/dev/null)" ]; then
-            echo "Using local executables directory:"
-            ls -la executables/
-            chmod +x executables/* 2>/dev/null || true
-            exit 0
-          else
-            echo "ERROR: Directory 'executables' is missing or empty on self-hosted runner (searched ./executables and ~/dds-rtps/executables)!" >&2
-            exit 1
-          fi
+        # 1) If local executables exist, use them directly - no download needed
+        if [ -d "executables" ] && [ "$(ls -A executables 2>/dev/null)" ]; then
+          echo "Found local executables in ./executables (skipping download)."
+          chmod +x executables/* 2>/dev/null || true
+          exit 0
         fi
 
-        # 2) Download from omg-dds/dds-rtps with retry (max 5 attempts)
+        # 2) Fallback: download from omg-dds/dds-rtps releases
+        echo "Executables not found in ./executables. Downloading from omg-dds/dds-rtps releases..."
+        mkdir -p zipped_executables
+
         for i in {1..5}; do
           echo "Attempt $i/5: downloading from omg-dds/dds-rtps..."
           if gh release download \
               --repo omg-dds/dds-rtps \
               --dir zipped_executables \
-              --pattern '*' \
+              --pattern '*.zip' \
               --clobber; then
-            count=$(find zipped_executables -type f | wc -l)
+            count=$(find zipped_executables -type f -name '*.zip' | wc -l)
             if [ "$count" -gt 0 ]; then
-              echo "Download OK ($count files)."
+              echo "Download OK ($count zip files)."
               exit 0
             fi
           fi
@@ -189,13 +173,14 @@ jobs:
 
 
     - name: Verify SHA256 integrity of vendor ZIPs
-      if: runner.environment != 'self-hosted'
       run: |
-        cd zipped_executables
-        for f in *.zip; do
-          echo "Verifying SHA256 for $f"
-          sha256sum "$f"
-        done
+        if [ -d "zipped_executables" ] && ls zipped_executables/*.zip 1>/dev/null 2>&1; then
+          cd zipped_executables
+          for f in *.zip; do
+            echo "Verifying SHA256 for $f"
+            sha256sum "$f"
+          done
+        fi
 
     - uses: actions/setup-python@v6
       if: runner.environment != 'self-hosted'
@@ -203,8 +188,12 @@ jobs:
         python-version: '3.11.4'
 
     - name: Unzip executables
-      if: runner.environment != 'self-hosted'
-      run: unzip 'zipped_executables/*.zip' -d executables
+      run: |
+        if [ -d "zipped_executables" ] && ls zipped_executables/*.zip 1>/dev/null 2>&1; then
+          mkdir -p executables
+          unzip -o 'zipped_executables/*.zip' -d executables
+          chmod +x executables/* 2>/dev/null || true
+        fi
     - name: Install Python requirements
       if: runner.environment != 'self-hosted'
       run: pip install --requirement requirements.txt
