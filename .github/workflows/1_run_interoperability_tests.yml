@@ -126,6 +126,8 @@ jobs:
     steps:
     - name: Checkout sources
       uses: actions/checkout@v6
+      with:
+        clean: false
 
     # ---------------------------------------------------------
     # VENDOR DOWNLOAD: local cache (self-hosted) → omg-dds/dds-rtps (max 5 attempts)
@@ -138,10 +140,10 @@ jobs:
 
         # 1) Self-hosted local cache – fastest, no network needed
         if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ] \
-            && [ -d "/opt/dds-vendors" ] \
-            && [ "$(ls -A /opt/dds-vendors)" ]; then
-          echo "Using local /opt/dds-vendors cache."
-          cp -r /opt/dds-vendors/* zipped_executables/
+            && [ -d "executables" ] \
+            && [ "$(ls -A executables)" ]; then
+          echo "Using local executables directory."
+          chmod +x executables/* 2>/dev/null || true
           exit 0
         fi
 
@@ -169,6 +171,7 @@ jobs:
 
 
     - name: Verify SHA256 integrity of vendor ZIPs
+      if: runner.environment != 'self-hosted'
       run: |
         cd zipped_executables
         for f in *.zip; do
@@ -182,6 +185,7 @@ jobs:
         python-version: '3.11.4'
 
     - name: Unzip executables
+      if: runner.environment != 'self-hosted'
       run: unzip 'zipped_executables/*.zip' -d executables
     - name: Install Python requirements
       if: runner.environment != 'self-hosted'
