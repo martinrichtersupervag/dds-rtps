@@ -133,7 +133,11 @@ jobs:
     - name: Check local vendor cache
       id: vendor_cache
       run: |
-        if [ -d "/opt/dds-vendors" ] && [ "$(ls -A /opt/dds-vendors)" ]; then
+        # Local /opt/dds-vendors cache is only meaningful on self-hosted runners.
+        # GitHub-hosted (ubuntu-latest) VMs are ephemeral – always download.
+        if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ] \
+            && [ -d "/opt/dds-vendors" ] \
+            && [ "$(ls -A /opt/dds-vendors)" ]; then
           echo "cache=true" >> $GITHUB_OUTPUT
         else
           echo "cache=false" >> $GITHUB_OUTPUT
@@ -176,7 +180,7 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Use local vendor cache
-      if: steps.vendor_cache.outputs.cache == 'true'
+      if: runner.environment == 'self-hosted' && steps.vendor_cache.outputs.cache == 'true'
       run: cp -r /opt/dds-vendors/* zipped_executables/
 
     - name: Verify SHA256 integrity of vendor ZIPs

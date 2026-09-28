@@ -21,24 +21,33 @@ Nová strategie zavádí **mirror-first přístup** s lokální cache a SHA256 o
 
 ```
 ┌─────────────────────────────────┐
-│    /opt/dds-vendors existuje?   │
-│    (self-hosted local cache)    │
+│    RUNNER_ENVIRONMENT?          │
 └──────────┬──────────────────────┘
            │
-     ┌─────┴──────┐
-     │ ANO        │ NE
-     ▼            ▼
-cp -r cache   Stáhni z MIRROR
-do zipped_    (martinrichtersupervag/
-executables/   dds-vendor-mirror)
-                    │
-              ┌─────┴──────┐
-              │ OK         │ FAILURE
-              │            ▼
-              │      Fallback: stáhni
-              │      z omg-dds/dds-rtps
-              │            │
-              └─────┬──────┘
+     ┌─────┴──────────────┐
+     │ self-hosted        │ ubuntu-latest (nebo jiný)
+     ▼                    ▼
+/opt/dds-vendors       cache=false (vždy)
+existuje & neprázdný?  → stáhni z mirroru
+     │
+  ┌──┴──┐
+  │ ANO │ NE
+  ▼     ▼
+cache  cache=false
+=true  → stáhni z mirroru
+  │            │
+  ▼            ▼
+cp -r      Mirror download
+cache      (martinrichtersupervag/
+do zipped_  dds-vendor-mirror)
+executables/       │
+               ┌───┴──────┐
+               │ OK       │ FAILURE
+               │          ▼
+               │   Fallback: stáhni
+               │   z omg-dds/dds-rtps
+               │          │
+               └────┬─────┘
                     ▼
              Retry loop (max 5×, 5s)
                     │
@@ -59,17 +68,26 @@ executables/   dds-vendor-mirror)
 - name: Check local vendor cache
   id: vendor_cache
   run: |
-    if [ -d "/opt/dds-vendors" ] && [ "$(ls -A /opt/dds-vendors)" ]; then
+    # Local /opt/dds-vendors cache is only meaningful on self-hosted runners.
+    # GitHub-hosted (ubuntu-latest) VMs are ephemeral – always download.
+    if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ] \
+        && [ -d "/opt/dds-vendors" ] \
+        && [ "$(ls -A /opt/dds-vendors)" ]; then
       echo "cache=true" >> $GITHUB_OUTPUT
     else
       echo "cache=false" >> $GITHUB_OUTPUT
     fi
 ```
 
-Zkontroluje, zda adresář `/opt/dds-vendors` na self-hosted runneru existuje a není prázdný.  
-Výstup: `vendor_cache.outputs.cache` = `true` | `false`
+Krok **vždy běží** (bez `if:` podmínky v YAML), ale uvnitř shell skriptu se větví podle proměnné prostředí `$RUNNER_ENVIRONMENT`:
 
-> **Poznámka pro self-hosted runnery:** Stačí předem nakopírovat vendor soubory do `/opt/dds-vendors/` na hostitelském stroji. Workflow pak přeskočí veškeré sítové stahování.
+| Runner | `$RUNNER_ENVIRONMENT` | Výsledek |
+|---|---|---|
+| `self-hosted` (vlastní stroj) | `self-hosted` | Zkontroluje `/opt/dds-vendors`, vrátí `true`/`false` |
+| `ubuntu-latest` (GitHub Azure) | prázdný / jiný | Vždy vrátí `cache=false`, `/opt/` se nekontroluje |
+
+> **Proč shell podmínka místo YAML `if:`?**  
+> Kdyby existovaly dva samostatné kroky s různými `id`, navazující kroky referencující `steps.vendor_cache.outputs.cache` by na jednom z runnerů vždy dostaly prázdnou hodnotu, což by rozbilo podmínky `== 'false'`. Jeden krok s jedním `id` zaručí, že výstup `cache` je vždy nastaven.
 
 ---
 
