@@ -138,14 +138,28 @@ jobs:
       run: |
         mkdir -p zipped_executables
 
-        # 1) Self-hosted or existing executables – fastest, no network needed
-        if [ "${{ inputs.runner }}" = "self-hosted" ] || [ "${{ runner.environment }}" = "self-hosted" ] || ([ -d "executables" ] && [ "$(ls -A executables)" ]); then
-          if [ -d "executables" ] && [ "$(ls -A executables)" ]; then
-            echo "Using local executables directory."
+        # 1) Self-hosted local executables – check and use directly, no download needed
+        if [ "${{ inputs.runner }}" = "self-hosted" ] || [ "${{ runner.environment }}" = "self-hosted" ]; then
+          mkdir -p executables
+
+          # If executables is empty in runner workspace, copy from host cache
+          if [ -z "$(ls -A executables 2>/dev/null)" ]; then
+            for src_dir in "$HOME/dds-rtps/executables" "/root/dds-rtps/executables" "/opt/vendors" "/opt/dds-vendors"; do
+              if [ -d "$src_dir" ] && [ "$(ls -A "$src_dir" 2>/dev/null)" ]; then
+                echo "Copying vendor executables from $src_dir to ./executables/..."
+                cp -r "$src_dir"/* executables/
+                break
+              fi
+            done
+          fi
+
+          if [ -d "executables" ] && [ "$(ls -A executables 2>/dev/null)" ]; then
+            echo "Using local executables directory:"
+            ls -la executables/
             chmod +x executables/* 2>/dev/null || true
             exit 0
           else
-            echo "ERROR: Directory 'executables' is missing or empty on self-hosted runner!" >&2
+            echo "ERROR: Directory 'executables' is missing or empty on self-hosted runner (searched ./executables and ~/dds-rtps/executables)!" >&2
             exit 1
           fi
         fi
