@@ -71,6 +71,7 @@ build/
 discovery_report_*.json
 discovery_summary.json
 timestamp
+runner_env
 archive_reports/
 
 # Do not ignore templates and dispatcher
@@ -88,3 +89,19 @@ doc/detailed_report.rst
 doc/test_results.rst
 test_description.rst
 doc/test_description.rst
+
+# Downloaded executables
+executables/
+zipped_executables/
+externals/
+
+# Parallel test runner temporaries
+.parallel_workdirs/
+.parallel_logs/
+
+# Python cache
+__pycache__/
+*.pyo
+
+# Actions runner archive
+actions-runner-*.tar.gz
