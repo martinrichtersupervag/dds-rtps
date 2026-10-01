@@ -102,6 +102,7 @@ externals/
 # Python cache
 __pycache__/
 *.pyo
+venv/
 
 # Actions runner archive
 actions-runner-*.tar.gz

@@ -118,6 +118,7 @@ jobs:
     needs: generate_timestamp
     strategy:
       fail-fast: false
+      max-parallel: 4
       matrix:
         publisher: ${{ fromJson(needs.generate_timestamp.outputs.publishers) }}
         subscriber: ${{ fromJson(needs.generate_timestamp.outputs.subscribers) }}
@@ -125,20 +126,74 @@ jobs:
     steps:
     - name: Checkout sources
       uses: actions/checkout@v6
+      with:
+        clean: false
+
+    # ---------------------------------------------------------
+    # VENDOR DOWNLOAD: local cache (self-hosted) → omg-dds/dds-rtps (max 5 attempts)
+    # ---------------------------------------------------------
+    - name: Prepare vendor executables
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        mkdir -p zipped_executables
+
+        # 1) If local executables exist, use them directly - no download needed
+        if [ -d "executables" ] && [ "$(ls -A executables 2>/dev/null)" ]; then
+          echo "Found local executables in ./executables (skipping download)."
+          chmod +x executables/* 2>/dev/null || true
+          exit 0
+        fi
+
+        # 2) Fallback: download from omg-dds/dds-rtps releases
+        echo "Executables not found in ./executables. Downloading from omg-dds/dds-rtps releases..."
+        mkdir -p zipped_executables
+
+        for i in {1..5}; do
+          echo "Attempt $i/5: downloading from omg-dds/dds-rtps..."
+          if gh release download \
+              --repo omg-dds/dds-rtps \
+              --dir zipped_executables \
+              --pattern '*.zip' \
+              --clobber; then
+            count=$(find zipped_executables -type f -name '*.zip' | wc -l)
+            if [ "$count" -gt 0 ]; then
+              echo "Download OK ($count zip files)."
+              exit 0
+            fi
+          fi
+          if [ "$i" -lt 5 ]; then
+            echo "Download incomplete, retrying in 5s..."
+            sleep 5
+          fi
+        done
+
+        echo "ERROR: All download attempts failed." >&2
+        exit 1
+
+
+    - name: Verify SHA256 integrity of vendor ZIPs
+      run: |
+        if [ -d "zipped_executables" ] && ls zipped_executables/*.zip 1>/dev/null 2>&1; then
+          cd zipped_executables
+          for f in *.zip; do
+            echo "Verifying SHA256 for $f"
+            sha256sum "$f"
+          done
+        fi
+
     - uses: actions/setup-python@v6
       if: runner.environment != 'self-hosted'
       with:
         python-version: '3.11.4'
-    - name: Download shape_main executables
-      uses: robinraju/release-downloader@v1.13
-      with:
-        repository: "omg-dds/dds-rtps"
-        latest: true
-        fileName: "*"
-        out-file-path: zipped_executables
-        preRelease: false
+
     - name: Unzip executables
-      run: unzip 'zipped_executables/*.zip' -d executables
+      run: |
+        if [ -d "zipped_executables" ] && ls zipped_executables/*.zip 1>/dev/null 2>&1; then
+          mkdir -p executables
+          unzip -o 'zipped_executables/*.zip' -d executables
+          chmod +x executables/* 2>/dev/null || true
+        fi
     - name: Install Python requirements
       if: runner.environment != 'self-hosted'
       run: pip install --requirement requirements.txt
@@ -162,8 +217,8 @@ jobs:
         fi
         if [[ "${subscriber_exe,,}" == *opendds* && "${publisher_exe,,}" == *connext_dds* ]]; then
           extra_args="--periodic-announcement 5000"
-        fi
-        if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ]; then
+        fi        
+        if [ "${{ inputs.runner }}" = "self-hosted" ]; then
           echo "Running on self-hosted runner: executing inside isolated Docker container..."
           ./run_in_docker.sh python3 interoperability_report.py --publisher $publisher_exe --subscriber $subscriber_exe --output-name $output_file $extra_args
         else
@@ -223,7 +278,7 @@ jobs:
       - name: Generate report files
         run: |
           RUNNER_VAL="${{ inputs.runner || 'ubuntu-latest' }}"
-          if [ "$RUNNER_ENVIRONMENT" = "self-hosted" ]; then
+          if [ "${{ inputs.runner }}" = "self-hosted" ] || [ "${{ runner.environment }}" = "self-hosted" ]; then
             ./run_in_docker.sh ./generate_reports.sh "$RUNNER_VAL"
           else
             ./generate_reports.sh "$RUNNER_VAL"
