@@ -37,21 +37,32 @@ if [ $# -eq 0 ]; then
     shopt -u nullglob
 fi
 
-echo "==> Running in isolated Docker container (bridge network, contained multicast)..."
-
 # Detect if running in an interactive terminal (allocate pseudo-TTY only if interactive)
 DOCKER_FLAGS="-i"
 if [ -t 0 ] && [ -t 1 ]; then
     DOCKER_FLAGS="-it"
 fi
 
+# Create dedicated isolated Docker network per container run to prevent cross-container multicast leakage
+NET_ID=$(tr -dc 'a-z0-9' < /proc/sys/kernel/random/uuid 2>/dev/null | head -c 8 || echo $RANDOM)
+DOCKER_NET="dds_net_${$}_${NET_ID}"
+docker network create "$DOCKER_NET" >/dev/null
+
+cleanup_network() {
+    docker network rm "$DOCKER_NET" >/dev/null 2>&1 || true
+}
+trap cleanup_network EXIT INT TERM
+
+echo "==> Running in isolated Docker container (dedicated network: $DOCKER_NET, contained multicast)..."
+
 # Run container:
 # - Mount current directory to /workspace so test reports are saved to host
-# - Default bridge network isolates multicast discovery (239.255.0.1) from local LAN
+# - Dedicated bridge network isolates multicast discovery (239.255.0.1) from host and other containers
 # - Runs with current host user UID:GID and PYTHONDONTWRITEBYTECODE=1 to avoid permission issues
 # - Passes any additional arguments directly to the container command
 if [ $# -eq 0 ]; then
     docker run --rm $DOCKER_FLAGS \
+        --network "$DOCKER_NET" \
         --cap-add=NET_ADMIN \
         --cap-add=NET_RAW \
         --user "$(id -u):$(id -g)" \
@@ -62,6 +73,7 @@ if [ $# -eq 0 ]; then
         /bin/bash
 else
     docker run --rm $DOCKER_FLAGS \
+        --network "$DOCKER_NET" \
         --cap-add=NET_ADMIN \
         --cap-add=NET_RAW \
         --user "$(id -u):$(id -g)" \
@@ -71,3 +83,4 @@ else
         "$IMAGE_NAME" \
         "$@"
 fi
+

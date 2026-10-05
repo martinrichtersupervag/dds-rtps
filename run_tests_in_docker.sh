@@ -46,12 +46,23 @@ else
     TEST_CMD="./run_tests.sh $*"
 fi
 
-echo "==> [3/4] Running tests inside Docker container ($IMAGE_NAME)..."
+# Create dedicated isolated Docker network to prevent cross-container multicast leakage
+NET_ID=$(tr -dc 'a-z0-9' < /proc/sys/kernel/random/uuid 2>/dev/null | head -c 8 || echo $RANDOM)
+DOCKER_NET="dds_net_${$}_${NET_ID}"
+docker network create "$DOCKER_NET" >/dev/null
+
+cleanup_network() {
+    docker network rm "$DOCKER_NET" >/dev/null 2>&1 || true
+}
+trap cleanup_network EXIT INT TERM
+
+echo "==> [3/4] Running tests inside Docker container ($IMAGE_NAME, network: $DOCKER_NET)..."
 echo "    Command: $TEST_CMD"
 
 # 3. Run container, execute tests, generate reports, and automatically terminate container (--rm)
 #    --cap-add=NET_ADMIN and NET_RAW allow tshark to capture discovery traffic inside the container
 docker run --rm \
+    --network "$DOCKER_NET" \
     --cap-add=NET_ADMIN \
     --cap-add=NET_RAW \
     --user "$(id -u):$(id -g)" \

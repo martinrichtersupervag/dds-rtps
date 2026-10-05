@@ -67,6 +67,9 @@ if [[ "$(docker images -q "$IMAGE_NAME" 2>/dev/null)" == "" ]] || \
     docker build -t "$IMAGE_NAME" .
 fi
 
+# Úklid případných visících dočasných sítí dds_net_*
+docker network ls --filter "name=dds_net_" -q | xargs -r docker network rm >/dev/null 2>&1 || true
+
 # ── archivace reportů předchozích ─────
 archive_dir="$SCRIPT_DIR/archive_reports"
 shopt -s nullglob
@@ -173,10 +176,17 @@ run_pair() {
         extra_args="--periodic-announcement 5000"
     fi
 
+    # Dedikovaná izolovaná Docker síť pro tento pár (zamezí multicast cross-talku)
+    local rand_id
+    rand_id=$(tr -dc 'a-z0-9' < /proc/sys/kernel/random/uuid 2>/dev/null | head -c 8 || echo $RANDOM)
+    local pair_net="dds_net_${idx}_${rand_id}"
+    docker network create "$pair_net" >/dev/null 2>&1 || true
+
     # Spusť Docker kontejner:
     #   /repo  = $SCRIPT_DIR read-only (skripty, Python soubory, executables)
     #   /workspace = work_dir read-write (výstupní XML soubory per-pár)
     docker run --rm \
+        --network "$pair_net" \
         --cap-add=NET_ADMIN \
         --cap-add=NET_RAW \
         --user "$(id -u):$(id -g)" \
@@ -193,6 +203,9 @@ run_pair() {
         > "$log_file" 2>&1
     local exit_code=$?
 
+    # Úklid dedikované Docker sítě
+    docker network rm "$pair_net" >/dev/null 2>&1 || true
+
     if [ $exit_code -eq 0 ]; then
         echo "  ✓ [$idx/$TOTAL] $pair_label"
     else
@@ -207,6 +220,18 @@ run_pair() {
 
 # ── paralelní spuštění throttlingem s 
 RUNNING_PIDS=()
+
+cleanup_parallel() {
+    echo ""
+    echo "==> Přerušeno uživatelem. Ukončuji běžící kontejnery a mažu dočasné sítě..."
+    for pid in "${RUNNING_PIDS[@]+"${RUNNING_PIDS[@]}"}"; do
+        kill "$pid" 2>/dev/null || true
+    done
+    docker network ls --filter "name=dds_net_" -q | xargs -r docker network rm >/dev/null 2>&1 || true
+    rm -rf "$WORK_ROOT" 2>/dev/null || true
+    exit 1
+}
+trap cleanup_parallel INT TERM
 
 wait_for_slot() {
     # Čekej, dokud je obsazeno MAX_JOBS slotů
