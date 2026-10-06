@@ -481,13 +481,13 @@ Furthermore, Docker's default bridge network isolates RTPS multicast discovery t
 Run all tests against executables in `./executables` and automatically generate XML, Excel (`.xlsx`), and HTML (`index.html`) reports:
 
 ```bash
-./run_tests_in_docker.sh
+./benchmarking/run_tests_in_docker.sh
 ```
 
 To run tests on a specific subset of executables or pass custom flags to `run_tests.sh`:
 
 ```bash
-./run_tests_in_docker.sh -p ./executables/connext_dds*shape_main_linux -s ./executables/opendds*shape_main_linux
+./benchmarking/run_tests_in_docker.sh -p ./executables/connext_dds*shape_main_linux -s ./executables/opendds*shape_main_linux
 ```
 
 ### Interactive Shell or Custom Execution
@@ -495,13 +495,13 @@ To run tests on a specific subset of executables or pass custom flags to `run_te
 You can also launch an interactive shell in the Docker container:
 
 ```bash
-./run_in_docker.sh
+./benchmarking/run_in_docker.sh
 ```
 
 Or run via Docker Compose:
 
 ```bash
-docker compose run --rm tester ./run_tests.sh -i ./executables
+docker compose -f benchmarking/docker-compose.yml run --rm tester ./run_tests.sh -i ./executables
 ```
 
 All generated reports (`junit_interoperability_report.xml`, `interoperability_report.xlsx`, `index.html`) are saved directly to the host workspace, and previous runs are automatically archived to `archive_reports/`.
@@ -547,7 +547,7 @@ To generate the report you should follow the next steps:
 
 > **Note on Runner Environment**:
 > * **`ubuntu-latest`** *(default)*: Executes in GitHub Actions cloud.
-> * **`self-hosted`**: Executes on your own self-hosted runner (e.g. inside an LXC container). In this mode, the workflow automatically runs tests inside an isolated Docker container (`run_in_docker.sh`) to prevent RTPS multicast discovery traffic from leaking into the physical local network.
+> * **`self-hosted`**: Executes on your own self-hosted runner (e.g. inside an LXC container). In this mode, the workflow automatically runs tests inside an isolated Docker container (`benchmarking/run_in_docker.sh`) to prevent RTPS multicast discovery traffic from leaking into the physical local network.
 
 4. Wait a few minutes until the new task is finished and then press it.\
 Example of a successful and a failed test:

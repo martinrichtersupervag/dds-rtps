@@ -159,18 +159,24 @@ for i in $publisher; do
             if [[ "$discovery_only" == "true" ]]; then
                 dur=${sniffer_duration:-6}
             fi
-            echo "Starting RTPS discovery sniffer for $publisher_name vs $subscriber_name (${dur}s)..."
-            python3 ./rtps_discovery_sniffer.py \
-                -i any \
-                -d "$dur" \
-                -P "$publisher_name" \
-                -S "$subscriber_name" \
-                -o "$discovery_xml" \
-                -j "$discovery_json" \
-                -t "$pair_timestamp" &
-            sniffer_pid=$!
-            # Give sniffer half a second to initialize capture on interface
-            sleep 1
+            sniffer_script="./benchmarking/rtps_discovery_sniffer.py"
+            if [ ! -f "$sniffer_script" ] && [ -f "./rtps_discovery_sniffer.py" ]; then
+                sniffer_script="./rtps_discovery_sniffer.py"
+            fi
+            if [ -f "$sniffer_script" ]; then
+                echo "Starting RTPS discovery sniffer for $publisher_name vs $subscriber_name (${dur}s)..."
+                python3 "$sniffer_script" \
+                    -i any \
+                    -d "$dur" \
+                    -P "$publisher_name" \
+                    -S "$subscriber_name" \
+                    -o "$discovery_xml" \
+                    -j "$discovery_json" \
+                    -t "$pair_timestamp" &
+                sniffer_pid=$!
+                # Give sniffer half a second to initialize capture on interface
+                sleep 1
+            fi
         fi
 
         python3 ./interoperability_report.py -P "$i" -S "$j" -o "$interop_report_file" $extra_args

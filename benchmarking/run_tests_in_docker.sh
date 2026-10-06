@@ -11,7 +11,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
 
 IMAGE_NAME="dds-rtps-tester"
 
@@ -24,19 +25,20 @@ fi
 # 1. Archive previous test reports from host if present
 archive_dir="$SCRIPT_DIR/archive_reports"
 shopt -s nullglob
-old_reports=("$SCRIPT_DIR"/*.xml "$SCRIPT_DIR"/*.xlsx "$SCRIPT_DIR"/index.html "$SCRIPT_DIR"/discovery_report*.json "$SCRIPT_DIR"/discovery_summary.json "$SCRIPT_DIR"/timestamp)
+old_reports=("$REPO_ROOT"/*.xml "$REPO_ROOT"/*.xlsx "$REPO_ROOT"/index.html "$REPO_ROOT"/discovery_report*.json "$REPO_ROOT"/discovery_summary.json "$REPO_ROOT"/timestamp \
+             "$SCRIPT_DIR"/*.xml "$SCRIPT_DIR"/*.xlsx "$SCRIPT_DIR"/index.html "$SCRIPT_DIR"/discovery_report*.json "$SCRIPT_DIR"/discovery_summary.json "$SCRIPT_DIR"/timestamp)
 if [ ${#old_reports[@]} -gt 0 ]; then
     echo "==> [1/4] Archiving previous test reports to archive_reports/..."
     mkdir -p "$archive_dir"
     mv "${old_reports[@]}" "$archive_dir/" 2>/dev/null || true
 fi
 shopt -u nullglob
-rm -f "$SCRIPT_DIR/timestamp"
+rm -f "$REPO_ROOT/timestamp" "$SCRIPT_DIR/timestamp"
 
 # 2. Build Docker image if not present or missing tshark
 if [[ "$(docker images -q "$IMAGE_NAME" 2> /dev/null)" == "" ]] || ! docker run --rm "$IMAGE_NAME" which tshark &> /dev/null; then
     echo "==> [2/4] Building Docker image: $IMAGE_NAME..."
-    docker build -t "$IMAGE_NAME" .
+    docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile" "$REPO_ROOT"
 fi
 
 # Determine test arguments: default to all executables under ./executables
@@ -67,12 +69,12 @@ docker run --rm \
     --cap-add=NET_RAW \
     --user "$(id -u):$(id -g)" \
     -e PYTHONDONTWRITEBYTECODE=1 \
-    -v "$SCRIPT_DIR:/workspace" \
+    -v "$REPO_ROOT:/workspace" \
     -w /workspace \
     "$IMAGE_NAME" \
-    /bin/bash -c "$TEST_CMD; ./generate_reports.sh"
+    /bin/bash -c "$TEST_CMD; ./benchmarking/generate_reports.sh"
 
 echo ""
 echo "==> [4/4] Docker container finished and closed."
-echo "==> Generated reports in $SCRIPT_DIR:"
-ls -lh "$SCRIPT_DIR"/junit_interoperability_report.xml "$SCRIPT_DIR"/junit_discovery_report*.xml "$SCRIPT_DIR"/discovery_report*.json "$SCRIPT_DIR"/interoperability_report.xlsx "$SCRIPT_DIR"/index.html 2>/dev/null || true
+echo "==> Generated reports in $REPO_ROOT:"
+ls -lh "$REPO_ROOT"/junit_interoperability_report.xml "$REPO_ROOT"/junit_discovery_report*.xml "$REPO_ROOT"/discovery_report*.json "$REPO_ROOT"/interoperability_report.xlsx "$REPO_ROOT"/index.html 2>/dev/null || true

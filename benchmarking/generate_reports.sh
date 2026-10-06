@@ -1,8 +1,22 @@
 #!/bin/bash
 set -e
 
-# Change to script directory
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Work in current directory unless no xml files here and xml files exist in SCRIPT_DIR
+shopt -s nullglob
+current_xmls=(*.xml)
+shopt -u nullglob
+
+if [ ${#current_xmls[@]} -eq 0 ] && [ -d "$SCRIPT_DIR" ]; then
+    shopt -s nullglob
+    bench_xmls=("$SCRIPT_DIR"/*.xml)
+    shopt -u nullglob
+    if [ ${#bench_xmls[@]} -gt 0 ]; then
+        cd "$SCRIPT_DIR"
+    fi
+fi
 
 # Remove previously merged XML report and Excel report to avoid conflict
 rm -f junit_interoperability_report.xml interoperability_report.xlsx
@@ -30,12 +44,23 @@ if [ -n "$1" ]; then
     RUNNER_ARG="--runner $1"
 elif [ -f runner_env ]; then
     RUNNER_ARG="--runner $(cat runner_env | tr -d '\r\n')"
+elif [ -f "$REPO_ROOT/runner_env" ]; then
+    RUNNER_ARG="--runner $(cat "$REPO_ROOT/runner_env" | tr -d '\r\n')"
 elif [ -n "$RUNNER_ENVIRONMENT" ]; then
     RUNNER_ARG="--runner $RUNNER_ENVIRONMENT"
 fi
 
-echo "[2/3] Generating Excel report interoperability_report.xlsx..."
-python3 generate_xlsx_report.py --input junit_interoperability_report.xml --output interoperability_report.xlsx $RUNNER_ARG
+GEN_XLSX_SCRIPT="generate_xlsx_report.py"
+if [ ! -f "$GEN_XLSX_SCRIPT" ]; then
+    if [ -f "$REPO_ROOT/generate_xlsx_report.py" ]; then
+        GEN_XLSX_SCRIPT="$REPO_ROOT/generate_xlsx_report.py"
+    elif [ -f "/workspace/generate_xlsx_report.py" ]; then
+        GEN_XLSX_SCRIPT="/workspace/generate_xlsx_report.py"
+    fi
+fi
+
+echo "[2/3] Generating Excel report interoperability_report.xlsx using $GEN_XLSX_SCRIPT..."
+python3 "$GEN_XLSX_SCRIPT" --input junit_interoperability_report.xml --output interoperability_report.xlsx $RUNNER_ARG
 
 echo "[3/3] Generating HTML report index.html..."
 if command -v xunit-viewer &> /dev/null; then
@@ -44,5 +69,5 @@ else
     npx -y xunit-viewer --results=./junit_interoperability_report.xml --output=./index.html
 fi
 
-echo "Done! Generated reports:"
+echo "Done! Generated reports in $(pwd):"
 ls -lh junit_interoperability_report.xml interoperability_report.xlsx index.html 2>/dev/null || true

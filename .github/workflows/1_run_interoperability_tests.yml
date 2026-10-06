@@ -220,7 +220,7 @@ jobs:
         fi        
         if [ "${{ inputs.runner }}" = "self-hosted" ]; then
           echo "Running on self-hosted runner: executing inside isolated Docker container..."
-          ./run_in_docker.sh python3 interoperability_report.py --publisher $publisher_exe --subscriber $subscriber_exe --output-name $output_file $extra_args
+          ./benchmarking/run_in_docker.sh python3 interoperability_report.py --publisher $publisher_exe --subscriber $subscriber_exe --output-name $output_file $extra_args
         else
           echo "Running in GitHub-hosted environment: executing directly..."
           python3 interoperability_report.py --publisher $publisher_exe --subscriber $subscriber_exe --output-name $output_file $extra_args
@@ -279,9 +279,9 @@ jobs:
         run: |
           RUNNER_VAL="${{ inputs.runner || 'ubuntu-latest' }}"
           if [ "${{ inputs.runner }}" = "self-hosted" ] || [ "${{ runner.environment }}" = "self-hosted" ]; then
-            ./run_in_docker.sh ./generate_reports.sh "$RUNNER_VAL"
+            ./benchmarking/run_in_docker.sh ./benchmarking/generate_reports.sh "$RUNNER_VAL"
           else
-            ./generate_reports.sh "$RUNNER_VAL"
+            ./benchmarking/generate_reports.sh "$RUNNER_VAL"
           fi
       - name: Download timestamp
         uses: actions/download-artifact@v8

@@ -1,38 +1,38 @@
 #!/bin/bash
 # ==============================================================================
-# run_benchmark.sh – opakovaně spouští run_tests_parallel.sh a přejmenovvá
-#                    výsledné reporty tak, aby obsahovaly datum, čas, počet
-#                    paralelních procesů a dobu trvání.
+# run_benchmark.sh - Repeatedly executes run_tests_parallel.sh and renames
+#                    the resulting reports to include date, time, number of
+#                    parallel jobs, and elapsed duration.
 #
-# Formát výsledného názvu:
+# Output filename format:
 #   junit_interoperability_report-DDMMYYYY-HHMM-parN-SECONDSsec.xml
 #   interoperability_report-DDMMYYYY-HHMM-parN-SECONDSsec.xlsx
 #   index-DDMMYYYY-HHMM-parN-SECONDSsec.html
 #
-# Použití:
+# Usage:
 #   ./run_benchmark.sh [--runs N]
-#   ./run_benchmark.sh           # výchozí počet běhů: 8
-#   ./run_benchmark.sh --runs 3  # spustit 3× místo 8
+#   ./run_benchmark.sh           # default number of runs: 8
+#   ./run_benchmark.sh --runs 3  # run 3x instead of 8
 #
-# Skript spustí:
-#   N iterací s --jobs 16   (FÁZE 1)
-#   N iterací s --jobs 4    (FÁZE 2)
+# The script executes:
+#   N iterations with --jobs 16  (PHASE 1)
+#   N iterations with --jobs 4   (PHASE 2)
 # ==============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-RUNS=8   # výchozí počet opakovní (pro každou skupinu --jobs)
+RUNS=8   # Default number of repetitions (for each --jobs group)
 
-# ── parsování argumentů ──────────────────────────────────────────
+# -- Argument parsing ---------------------------------------------------------
 usage() {
-    echo "Použití: $0 [--runs N]"
+    echo "Usage: $0 [--runs N]"
     echo ""
-    echo "  --runs N   Počet opakování pro každou konfiguraci --jobs (default: $RUNS)"
+    echo "  --runs N   Number of repetitions for each --jobs configuration (default: $RUNS)"
     echo ""
-    echo "Skript spustí N iterací s --jobs 16 a N iterací s --jobs 4."
-    echo "Výsledné soubory jsou přejmenovány a zůstávají v adresáři repozitáře."
+    echo "The script runs N iterations with --jobs 16 and N iterations with --jobs 4."
+    echo "Resulting files are renamed and remain in the benchmarking directory."
     exit 1
 }
 
@@ -40,22 +40,22 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --runs|-r)  RUNS="$2"; shift 2 ;;
         --help|-h)  usage ;;
-        *) echo "Neznámý argument: $1"; usage ;;
+        *) echo "Unknown argument: $1"; usage ;;
     esac
 done
 
 if ! [[ "$RUNS" =~ ^[0-9]+$ ]] || [ "$RUNS" -lt 1 ]; then
-    echo "ERROR: --runs musí být kladné celé číslo (zadáno: '$RUNS')"
+    echo "ERROR: --runs must be a positive integer (provided: '$RUNS')"
     exit 1
 fi
 
-# ── přejmenování bez přepsání ─────────────
-# Přesune $1 na $2; pokud $2 již existuje, přidá _2, _3, …
+# -- Rename without overwriting -----------------------------------------------
+# Moves $1 to $2; if $2 already exists, appends _2, _3, ...
 safe_rename() {
     local src="$1"
     local dst="$2"
     if [ ! -f "$src" ]; then
-        echo "  VAROVNÍ: '$src' neexistuje, přeskakuji."
+        echo "  WARNING: '$src' does not exist, skipping."
         return 0
     fi
     if [ ! -f "$dst" ]; then
@@ -69,22 +69,22 @@ safe_rename() {
             n=$(( n + 1 ))
         done
         mv "$src" "${base}_${n}.${ext}"
-        echo "  -> $(basename "${base}_${n}.${ext}") (kolize: přidán suffix _${n})"
+        echo "  -> $(basename "${base}_${n}.${ext}") (collision: added suffix _${n})"
     fi
 }
 
-# ── jeden run + přejmenování výstup ─────────────────────────────────────────
+# -- Single run + output renaming ---------------------------------------------
 run_once() {
     local jobs="$1"
     local run_idx="$2"
     local total_runs="$3"
 
     local dt
-    dt=$(date +%d%m%Y-%H%M)   # DDMMYYYY-HHMM v okamžiku startu
+    dt=$(date +%d%m%Y-%H%M)   # DDMMYYYY-HHMM at start time
 
     echo ""
     echo "================================================================"
-    echo "  Behu ${run_idx}/${total_runs}  (--jobs ${jobs})   [${dt}]"
+    echo "  Run ${run_idx}/${total_runs}  (--jobs ${jobs})   [${dt}]"
     echo "================================================================"
 
     local t_start
@@ -97,7 +97,7 @@ run_once() {
     local elapsed=$(( t_end - t_start ))
 
     echo ""
-    echo "  Beh dokoncen za ${elapsed}s."
+    echo "  Run completed in ${elapsed}s."
 
     local suffix="${dt}-par${jobs}-${elapsed}sec"
 
@@ -114,18 +114,18 @@ run_once() {
         "$SCRIPT_DIR/index-${suffix}.html"
 }
 
-# ── smyčka hlavní ─────────────────────────
+# -- Main loop ----------------------------------------------------------------
 echo ""
 echo "=================================================================="
-echo "  run_benchmark.sh – benchmark test suite"
-echo "  Pocet behu: ${RUNS}x s --jobs 16  +  ${RUNS}x s --jobs 4"
+echo "  run_benchmark.sh - benchmark test suite"
+echo "  Number of runs: ${RUNS}x with --jobs 16  +  ${RUNS}x with --jobs 4"
 echo "=================================================================="
 
 GLOBAL_START=$(date +%s)
 
 echo ""
 echo "------------------------------------------------------------------"
-echo "  FAZE 1: ${RUNS} opakovani s --jobs 16"
+echo "  PHASE 1: ${RUNS} repetitions with --jobs 16"
 echo "------------------------------------------------------------------"
 for i in $(seq 1 "$RUNS"); do
     run_once 16 "$i" "$RUNS"
@@ -133,7 +133,7 @@ done
 
 echo ""
 echo "------------------------------------------------------------------"
-echo "  FAZE 2: ${RUNS} opakovani s --jobs 4"
+echo "  PHASE 2: ${RUNS} repetitions with --jobs 4"
 echo "------------------------------------------------------------------"
 for i in $(seq 1 "$RUNS"); do
     run_once 4 "$i" "$RUNS"
@@ -145,14 +145,14 @@ TOTAL_RUNS=$(( RUNS * 2 ))
 
 echo ""
 echo "=================================================================="
-echo "  Celkovy benchmark dokoncen za ${GLOBAL_ELAPSED}s"
-echo "  Celkem behu: ${TOTAL_RUNS}  (${RUNS}x par16 + ${RUNS}x par4)"
+echo "  Total benchmark completed in ${GLOBAL_ELAPSED}s"
+echo "  Total runs: ${TOTAL_RUNS}  (${RUNS}x par16 + ${RUNS}x par4)"
 echo "=================================================================="
 echo ""
-echo "Vysledne soubory v $SCRIPT_DIR:"
+echo "Resulting files in $SCRIPT_DIR:"
 ls -1 \
     "$SCRIPT_DIR"/junit_interoperability_report-*.xml \
     "$SCRIPT_DIR"/interoperability_report-*.xlsx \
     "$SCRIPT_DIR"/index-*.html 2>/dev/null | sort \
-    || echo "  (zadne soubory nenalezeny)"
+    || echo "  (no files found)"
 echo ""

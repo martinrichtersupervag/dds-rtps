@@ -73,10 +73,12 @@ discovery_summary.json
 timestamp
 runner_env
 archive_reports/
+benchmarking/archive_reports/
 
 # Do not ignore templates and dispatcher
 !doc/_templates/*.html
 !workflow_dispatcher.html
+!benchmarking/workflow_dispatcher.html
 
 .DS_Store
 core
@@ -98,6 +100,8 @@ externals/
 # Parallel test runner temporaries
 .parallel_workdirs/
 .parallel_logs/
+benchmarking/.parallel_workdirs/
+benchmarking/.parallel_logs/
 
 # Python cache
 __pycache__/

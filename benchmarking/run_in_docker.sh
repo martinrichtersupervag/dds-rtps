@@ -6,8 +6,9 @@ set -e
 
 IMAGE_NAME="dds-rtps-tester"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-cd "$SCRIPT_DIR"
+cd "$REPO_ROOT"
 
 # Check if Docker is installed
 if ! command -v docker &> /dev/null; then
@@ -18,7 +19,7 @@ fi
 # Build Docker image if requested or if it does not exist
 if [[ "$1" == "--build" ]] || [[ "$(docker images -q "$IMAGE_NAME" 2> /dev/null)" == "" ]]; then
     echo "==> Building Docker image: $IMAGE_NAME..."
-    docker build -t "$IMAGE_NAME" .
+    docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile" "$REPO_ROOT"
     if [[ "$1" == "--build" ]]; then
         shift
     fi
@@ -67,7 +68,7 @@ if [ $# -eq 0 ]; then
         --cap-add=NET_RAW \
         --user "$(id -u):$(id -g)" \
         -e PYTHONDONTWRITEBYTECODE=1 \
-        -v "$SCRIPT_DIR:/workspace" \
+        -v "$REPO_ROOT:/workspace" \
         -w /workspace \
         "$IMAGE_NAME" \
         /bin/bash
@@ -78,7 +79,7 @@ else
         --cap-add=NET_RAW \
         --user "$(id -u):$(id -g)" \
         -e PYTHONDONTWRITEBYTECODE=1 \
-        -v "$SCRIPT_DIR:/workspace" \
+        -v "$REPO_ROOT:/workspace" \
         -w /workspace \
         "$IMAGE_NAME" \
         "$@"

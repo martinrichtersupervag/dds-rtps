@@ -2,45 +2,46 @@
 # ==============================================================================
 # Run DDS-RTPS interoperability tests in PARALLEL Docker containers
 #
-# Analogie GitHub Actions matrix – každý pár (publisher × subscriber) běží
-# v samostatném Docker kontejneru souběžně.
+# Analogous to GitHub Actions matrix - each pair (publisher x subscriber) runs
+# concurrently in its own dedicated Docker container.
 #
 # Workflow:
-#   1. Archivuje stávající reporty z hostu do archive_reports/
-#   2. Spustí N Docker kontejnerů (default: 8) souběžně
-#      – každý dostane vlastní izolovaný work-dir, aby si nepřepisovaly soubory
-#   3. Shromáždí všechny XML reporty do $SCRIPT_DIR
-#   4. Vygeneruje finální XML, XLSX a HTML reporty
+#   1. Archives existing host reports to archive_reports/
+#   2. Launches N Docker containers (default: 8) concurrently
+#      - each container gets an isolated work-dir to prevent file overwrites
+#   3. Collects all XML reports into $SCRIPT_DIR
+#   4. Generates final XML, XLSX, and HTML reports
 #
-# Použití:
+# Usage:
 #   ./run_tests_parallel.sh [--jobs N] [--publishers p1,p2] [--subscribers s1,s2]
-#   ./run_tests_parallel.sh                      # vše × vše, 8 souběhů
-#   ./run_tests_parallel.sh --jobs 4             # omez na 4 souběhy
+#   ./run_tests_parallel.sh                      # all x all, 8 concurrent jobs
+#   ./run_tests_parallel.sh --jobs 4             # limit to 4 concurrent jobs
 #   ./run_tests_parallel.sh --publishers connext_dds --subscribers dust_dds,eclipse_cyclone
 # ==============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$SCRIPT_DIR"
 
 IMAGE_NAME="dds-rtps-tester"
-MAX_JOBS=8          # výchozí počet souběžných Docker kontejnerů
+MAX_JOBS=8          # Default number of concurrent Docker containers
 
-# ── argumentů parsování ─────────────────
+# -- Argument parsing ---------------------------------------------------------
 FILTER_PUBLISHERS=""
 FILTER_SUBSCRIBERS=""
 
 usage() {
-    echo "Použití: $0 [--jobs N] [--publishers p1,p2,...] [--subscribers s1,s2,...]"
+    echo "Usage: $0 [--jobs N] [--publishers p1,p2,...] [--subscribers s1,s2,...]"
     echo ""
-    echo "  --jobs N           Maximální počet souběžných Docker kontejnerů (default: $MAX_JOBS)"
-    echo "  --publishers LIST  Filtr publisherů (čárkou oddělené části názvu exe, nebo 'all')"
-    echo "  --subscribers LIST Filtr subscriberů (čárkou oddělené sti názvu exe, nebo 'all')"
+    echo "  --jobs N           Maximum number of concurrent Docker containers (default: $MAX_JOBS)"
+    echo "  --publishers LIST  Publisher filter (comma-separated substrings of exe name, or 'all')"
+    echo "  --subscribers LIST Subscriber filter (comma-separated substrings of exe name, or 'all')"
     echo ""
-    echo "Příklady:"
-    echo "  $0                                                   # vše × vše, 8 souběhů"
-    echo "  $0 --jobs 4                                          # omez na 4 souběhy"
-    echo "  $0 --publishers connext_dds --subscribers dust_dds   # jen 1 pár"
+    echo "Examples:"
+    echo "  $0                                                   # all x all, 8 concurrent jobs"
+    echo "  $0 --jobs 4                                          # limit to 4 concurrent jobs"
+    echo "  $0 --publishers connext_dds --subscribers dust_dds   # single pair only"
     exit 1
 }
 
@@ -50,50 +51,55 @@ while [[ $# -gt 0 ]]; do
         --publishers|-p)  FILTER_PUBLISHERS="$2"; shift 2 ;;
         --subscribers|-s) FILTER_SUBSCRIBERS="$2"; shift 2 ;;
         --help|-h)        usage ;;
-        *) echo "Neznámý argument: $1"; usage ;;
+        *) echo "Unknown argument: $1"; usage ;;
     esac
 done
 
-# ── Docker kontrola ─────────────────────────────────
+# -- Docker check -------------------------------------------------------------
 if ! command -v docker &>/dev/null; then
-    echo "ERROR: 'docker' příkaz nenalezen. Nainstalujte Docker."
+    echo "ERROR: 'docker' command not found. Please install Docker."
     exit 1
 fi
 
-# ── sestav image Docker ─────────────────────────
+# -- Build Docker image -------------------------------------------------------
 if [[ "$(docker images -q "$IMAGE_NAME" 2>/dev/null)" == "" ]] || \
    ! docker run --rm "$IMAGE_NAME" which tshark &>/dev/null; then
-    echo "==> Sestavuji Docker image: $IMAGE_NAME..."
-    docker build -t "$IMAGE_NAME" .
+    echo "==> Building Docker image: $IMAGE_NAME..."
+    docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile" "$REPO_ROOT"
 fi
 
-# Úklid případných visících dočasných sítí dds_net_*
+# Clean up any leftover temporary dds_net_* networks
 docker network ls --filter "name=dds_net_" -q | xargs -r docker network rm >/dev/null 2>&1 || true
 
-# ── archivace reportů předchozích ─────
+# -- Archive previous reports -------------------------------------------------
 archive_dir="$SCRIPT_DIR/archive_reports"
 shopt -s nullglob
 old_reports=("$SCRIPT_DIR"/*.xml "$SCRIPT_DIR"/*.xlsx "$SCRIPT_DIR"/index.html \
              "$SCRIPT_DIR"/discovery_report*.json "$SCRIPT_DIR"/discovery_summary.json \
              "$SCRIPT_DIR"/timestamp)
 if [ ${#old_reports[@]} -gt 0 ]; then
-    echo "==> [1] Archivuji předchozí reporty do archive_reports/..."
+    echo "==> [1] Archiving previous reports to archive_reports/..."
     mkdir -p "$archive_dir"
     mv "${old_reports[@]}" "$archive_dir/" 2>/dev/null || true
 fi
 shopt -u nullglob
 rm -f "$SCRIPT_DIR/timestamp"
 
-# ── zjisti executables dostupné ──────
-mapfile -t ALL_EXES < <(find "$SCRIPT_DIR/executables" -type f -name '*shape_main_linux' | sort)
+# -- Discover available executables -------------------------------------------
+EXE_DIR="$REPO_ROOT/executables"
+if [ ! -d "$EXE_DIR" ] && [ -d "$SCRIPT_DIR/executables" ]; then
+    EXE_DIR="$SCRIPT_DIR/executables"
+fi
+
+mapfile -t ALL_EXES < <(find "$EXE_DIR" -type f -name '*shape_main_linux' 2>/dev/null | sort)
 
 if [ ${#ALL_EXES[@]} -eq 0 ]; then
-    echo "ERROR: Žádné *shape_main_linux executables nenalezeny v $SCRIPT_DIR/executables/"
-    echo "       Rozbalte je nejprve (viz README)."
+    echo "ERROR: No *shape_main_linux executables found in $EXE_DIR/"
+    echo "       Please extract them first (see README)."
     exit 1
 fi
 
-# Filtrování podle --publishers / --subscribers
+# Filter by --publishers / --subscribers
 filter_exes() {
     local result_var="$1"
     local filter="$2"
@@ -112,7 +118,7 @@ filter_exes() {
             done
         done
     fi
-    # Exportuj pes nameref – kompatibilní s bash 4.3+
+    # Export via nameref - compatible with bash 4.3+
     eval "${result_var}=($(printf '"%s" ' "${result[@]+"${result[@]}"}") )"
 }
 
@@ -120,21 +126,21 @@ filter_exes PUBLISHERS "$FILTER_PUBLISHERS"
 filter_exes SUBSCRIBERS "$FILTER_SUBSCRIBERS"
 
 if [ ${#PUBLISHERS[@]} -eq 0 ]; then
-    echo "ERROR: Žádný publisher neodpovídá filtru: '$FILTER_PUBLISHERS'"
+    echo "ERROR: No publishers match filter: '$FILTER_PUBLISHERS'"
     exit 1
 fi
 if [ ${#SUBSCRIBERS[@]} -eq 0 ]; then
-    echo "ERROR: Žádný subscriber neodpovídá filtru: '$FILTER_SUBSCRIBERS'"
+    echo "ERROR: No subscribers match filter: '$FILTER_SUBSCRIBERS'"
     exit 1
 fi
 
-# ── společné nastavení ─────────────
+# -- Common setup -------------------------------------------------------------
 WORK_ROOT="$SCRIPT_DIR/.parallel_workdirs"
 LOG_DIR="$SCRIPT_DIR/.parallel_logs"
 rm -rf "$WORK_ROOT" "$LOG_DIR"
 mkdir -p "$WORK_ROOT" "$LOG_DIR"
 
-# ── sestav seznam párů všech ──────────────────────────────
+# -- Build list of all pairs --------------------------------------------------
 declare -a PAIRS_PUB=()
 declare -a PAIRS_SUB=()
 for pub in "${PUBLISHERS[@]}"; do
@@ -146,14 +152,14 @@ done
 
 TOTAL=${#PAIRS_PUB[@]}
 echo ""
-echo "==> [2] Spouštím $TOTAL párů testů (max $MAX_JOBS souběžně)..."
+echo "==> [2] Running $TOTAL test pairs (max $MAX_JOBS concurrently)..."
 pub_names=$(printf '%s ' "${PUBLISHERS[@]}" | xargs -n1 basename | sed 's/_shape_main_linux//' | tr '\n' ' ')
 sub_names=$(printf '%s ' "${SUBSCRIBERS[@]}" | xargs -n1 basename | sed 's/_shape_main_linux//' | tr '\n' ' ')
-echo "        Publisheři (${#PUBLISHERS[@]}): $pub_names"
-echo "        Subscribeři (${#SUBSCRIBERS[@]}): $sub_names"
+echo "        Publishers (${#PUBLISHERS[@]}): $pub_names"
+echo "        Subscribers (${#SUBSCRIBERS[@]}): $sub_names"
 echo ""
 
-# ── funkce pro spuštění jednoho páru ──────────────────────────────────────────
+# -- Function to run a single pair --------------------------------------------
 run_pair() {
     local idx="$1"
     local pub_exe="$2"
@@ -166,7 +172,7 @@ run_pair() {
     local pair_label="${pub_name}---${sub_name}"
     local log_file="$LOG_DIR/${pair_label}.log"
 
-    # Izolovaný work-dir pro výstupy tohoto páru
+    # Isolated work-dir for this pair's outputs
     local work_dir="$WORK_ROOT/${pair_label}"
     mkdir -p "$work_dir"
 
@@ -176,54 +182,65 @@ run_pair() {
         extra_args="--periodic-announcement 5000"
     fi
 
-    # Dedikovaná izolovaná Docker síť pro tento pár (zamezí multicast cross-talku)
+    # Dedicated isolated Docker network for this pair (prevents multicast cross-talk)
     local rand_id
     rand_id=$(tr -dc 'a-z0-9' < /proc/sys/kernel/random/uuid 2>/dev/null | head -c 8 || echo $RANDOM)
     local pair_net="dds_net_${idx}_${rand_id}"
     docker network create "$pair_net" >/dev/null 2>&1 || true
 
-    # Spusť Docker kontejner:
-    #   /repo  = $SCRIPT_DIR read-only (skripty, Python soubory, executables)
-    #   /workspace = work_dir read-write (výstupní XML soubory per-pár)
+    local pub_container_path="/repo/executables/$(basename "$pub_exe")"
+    if [ ! -f "$REPO_ROOT/executables/$(basename "$pub_exe")" ] && [ -f "$SCRIPT_DIR/executables/$(basename "$pub_exe")" ]; then
+        pub_container_path="/benchmarking/executables/$(basename "$pub_exe")"
+    fi
+    local sub_container_path="/repo/executables/$(basename "$sub_exe")"
+    if [ ! -f "$REPO_ROOT/executables/$(basename "$sub_exe")" ] && [ -f "$SCRIPT_DIR/executables/$(basename "$sub_exe")" ]; then
+        sub_container_path="/benchmarking/executables/$(basename "$sub_exe")"
+    fi
+
+    # Run Docker container:
+    #   /repo  = $REPO_ROOT read-only (scripts, Python files, executables)
+    #   /benchmarking = $SCRIPT_DIR read-only
+    #   /workspace = work_dir read-write (per-pair output XML files)
     docker run --rm \
         --network "$pair_net" \
         --cap-add=NET_ADMIN \
         --cap-add=NET_RAW \
         --user "$(id -u):$(id -g)" \
         -e PYTHONDONTWRITEBYTECODE=1 \
-        -v "${SCRIPT_DIR}:/repo:ro" \
+        -v "${REPO_ROOT}:/repo:ro" \
+        -v "${SCRIPT_DIR}:/benchmarking:ro" \
         -v "${work_dir}:/workspace" \
         -w /workspace \
         "$IMAGE_NAME" \
         /bin/bash -c "python3 /repo/interoperability_report.py \
-            -P /repo/executables/$(basename "$pub_exe") \
-            -S /repo/executables/$(basename "$sub_exe") \
+            -P \"$pub_container_path\" \
+            -S \"$sub_container_path\" \
             -o /workspace/$output_xml \
             $extra_args" \
         > "$log_file" 2>&1
     local exit_code=$?
 
-    # Úklid dedikované Docker sítě
+    # Clean up dedicated Docker network
     docker network rm "$pair_net" >/dev/null 2>&1 || true
 
     if [ $exit_code -eq 0 ]; then
-        echo "  ✓ [$idx/$TOTAL] $pair_label"
+        echo "  [PASS] [$idx/$TOTAL] $pair_label"
     else
-        echo "  ✗ [$idx/$TOTAL] $pair_label (exit=$exit_code) — log: .parallel_logs/${pair_label}.log"
+        echo "  [FAIL] [$idx/$TOTAL] $pair_label (exit=$exit_code) - log: .parallel_logs/${pair_label}.log"
     fi
 
-    # Zkopíruj XML report do SCRIPT_DIR
+    # Copy XML report to SCRIPT_DIR
     if [ -f "$work_dir/$output_xml" ]; then
         cp "$work_dir/$output_xml" "$SCRIPT_DIR/$output_xml"
     fi
 }
 
-# ── paralelní spuštění throttlingem s 
+# -- Parallel execution with throttling ---------------------------------------
 RUNNING_PIDS=()
 
 cleanup_parallel() {
     echo ""
-    echo "==> Přerušeno uživatelem. Ukončuji běžící kontejnery a mažu dočasné sítě..."
+    echo "==> Interrupted by user. Terminating running containers and removing temporary networks..."
     for pid in "${RUNNING_PIDS[@]+"${RUNNING_PIDS[@]}"}"; do
         kill "$pid" 2>/dev/null || true
     done
@@ -234,7 +251,7 @@ cleanup_parallel() {
 trap cleanup_parallel INT TERM
 
 wait_for_slot() {
-    # Čekej, dokud je obsazeno MAX_JOBS slotů
+    # Wait while MAX_JOBS slots are occupied
     while true; do
         local alive=()
         for pid in "${RUNNING_PIDS[@]+"${RUNNING_PIDS[@]}"}"; do
@@ -255,38 +272,39 @@ for i in "${!PAIRS_PUB[@]}"; do
     RUNNING_PIDS+=("$!")
 done
 
-# Počkej na všechny zbývající procesy
+# Wait for all remaining background processes
 wait
 
-# ── úklid dočasných work-dirů ──
+# -- Clean up temporary work-dirs ---------------------------------------------
 rm -rf "$WORK_ROOT"
 
-# ── generuj reporty finální ─
+# -- Generate final reports ---------------------------------------------------
 ELAPSED=$(( $(date +%s) - START_TIME ))
 echo ""
-echo "==> [3] Všechny páry dokončeny za ${ELAPSED}s. Generuji finální reporty..."
+echo "==> [3] All pairs completed in ${ELAPSED}s. Generating final reports..."
 
 shopt -s nullglob
 found_xmls=("$SCRIPT_DIR"/junit_report-*.xml)
 shopt -u nullglob
 
 if [ ${#found_xmls[@]} -eq 0 ]; then
-    echo "ERROR: Žádné JUnit XML reporty nebyly vygenerovány! Zkontrolujte logy v $LOG_DIR/"
+    echo "ERROR: No JUnit XML reports were generated! Check logs in $LOG_DIR/"
     exit 1
 fi
 
 docker run --rm \
     --user "$(id -u):$(id -g)" \
     -e PYTHONDONTWRITEBYTECODE=1 \
-    -v "$SCRIPT_DIR:/workspace" \
-    -w /workspace \
+    -v "$REPO_ROOT:/workspace" \
+    -v "$SCRIPT_DIR:/benchmarking" \
+    -w /benchmarking \
     "$IMAGE_NAME" \
-    /bin/bash -c "./generate_reports.sh"
+    /bin/bash -c "/benchmarking/generate_reports.sh"
 
 echo ""
-echo "==> [4] Hotovo! Vygenerované reporty v $SCRIPT_DIR:"
+echo "==> [4] Done! Generated reports in $SCRIPT_DIR:"
 ls -lh "$SCRIPT_DIR"/junit_interoperability_report.xml \
         "$SCRIPT_DIR"/interoperability_report.xlsx \
         "$SCRIPT_DIR"/index.html 2>/dev/null || true
 echo ""
-echo "    Logy jednotlivých párů: $LOG_DIR/"
+echo "    Logs for individual pairs: $LOG_DIR/"
