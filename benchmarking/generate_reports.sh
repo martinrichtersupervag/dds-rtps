@@ -4,18 +4,16 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Work in current directory unless no xml files here and xml files exist in SCRIPT_DIR
+# Work in the repository root (original location of the reports, consumed by the
+# GitHub Actions upload workflow). Fall back to the script directory only when
+# the XML reports are there (e.g. produced by run_tests_parallel.sh).
+cd "$REPO_ROOT"
 shopt -s nullglob
-current_xmls=(*.xml)
+root_xmls=(*.xml)
+bench_xmls=("$SCRIPT_DIR"/junit_report-*.xml)
 shopt -u nullglob
-
-if [ ${#current_xmls[@]} -eq 0 ] && [ -d "$SCRIPT_DIR" ]; then
-    shopt -s nullglob
-    bench_xmls=("$SCRIPT_DIR"/*.xml)
-    shopt -u nullglob
-    if [ ${#bench_xmls[@]} -gt 0 ]; then
-        cd "$SCRIPT_DIR"
-    fi
+if [ ${#root_xmls[@]} -eq 0 ] && [ ${#bench_xmls[@]} -gt 0 ]; then
+    cd "$SCRIPT_DIR"
 fi
 
 # Remove previously merged XML report and Excel report to avoid conflict
