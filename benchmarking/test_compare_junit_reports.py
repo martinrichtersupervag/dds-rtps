@@ -7,18 +7,23 @@ import compare_junit_reports as mod
 
 class PrintDifferencesTest(unittest.TestCase):
     def test_print_differences_uses_report_timestamps(self):
-        report = {
-            "first": {"file": "D:/tmp/junit_interoperability_report_2026-08-30-06_18_47.xml"},
-            "second": {"file": "D:/tmp/junit_interoperability_report_2026-08-30-16_15_12.xml"},
-            "added": [],
-            "removed": [],
-            "changed": [
-                {
-                    "test": "suite / case",
-                    "differences": {"status": {"first": "failure", "second": "passed"}},
-                }
+        from junit_compare.report_data import CompareReport, ChangedTest
+        report = CompareReport(
+            first_file="D:/tmp/junit_interoperability_report_2026-08-30-06_18_47.xml",
+            second_file="D:/tmp/junit_interoperability_report_2026-08-30-16_15_12.xml",
+            first_summary={},
+            second_summary={},
+            first_count=0,
+            second_count=0,
+            added=[],
+            removed=[],
+            changed=[
+                ChangedTest(
+                    test="suite / case",
+                    differences={"status": {"first": "failure", "second": "passed"}},
+                )
             ],
-        }
+        )
 
         output = io.StringIO()
         with redirect_stdout(output):
@@ -65,24 +70,33 @@ class GenerateExplanationTest(unittest.TestCase):
     def test_generate_explanation_creates_file_with_required_format(self):
         from pathlib import Path
         import tempfile
+        from junit_compare.report_data import CompareReport, ChangedTest
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
             first = tmppath / "junit_report_2026-08-30-06_18_47.xml"
             last = tmppath / "junit_report_2026-08-30-16_15_12.xml"
             reports = [
-                {
-                    "changed": [
-                        {
-                            "test": "suite / case_1",
-                            "differences": {"status": {"first": "failure", "second": "passed"}},
-                        },
-                        {
-                            "test": "suite / case_2",
-                            "differences": {"status": {"first": "skipped", "second": "passed"}},
-                        },
-                    ]
-                }
+                CompareReport(
+                    first_file=str(first),
+                    second_file=str(last),
+                    first_summary={},
+                    second_summary={},
+                    first_count=0,
+                    second_count=0,
+                    added=[],
+                    removed=[],
+                    changed=[
+                        ChangedTest(
+                            test="suite / case_1",
+                            differences={"status": {"first": "failure", "second": "passed"}},
+                        ),
+                        ChangedTest(
+                            test="suite / case_2",
+                            differences={"status": {"first": "skipped", "second": "passed"}},
+                        ),
+                    ],
+                )
             ]
 
             out_file = mod.generate_explanation(first, last, reports)
@@ -91,8 +105,8 @@ class GenerateExplanationTest(unittest.TestCase):
             self.assertEqual(out_file.name, "explain_2026-08-30-06_18_47_2026-08-30-16_15_12.txt")
 
             content = out_file.read_text(encoding="utf-8")
-            self.assertIn("Skutečně nestabilních (flaky) testů je 1", content)
-            self.assertIn("částečně nestabilní testů je 1", content)
+            self.assertIn("Truly flaky tests: 1", content)
+            self.assertIn("Partially flaky tests: 1", content)
             self.assertIn("##Result for: Explanation and Analysis", content)
 
 

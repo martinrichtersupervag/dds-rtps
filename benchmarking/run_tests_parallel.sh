@@ -68,7 +68,11 @@ if [[ "$(docker images -q "$IMAGE_NAME" 2>/dev/null)" == "" ]] || \
     docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile" "$REPO_ROOT"
 fi
 
-# Clean up any leftover temporary dds_net_* networks
+# Clean up leftover containers (from interrupted runs) and dds_net_* networks.
+# Leaked containers hold their networks (exhausting Docker's address pool,
+# so new networks cannot be created) and steal CPU -> slower and slower runs.
+RUN_LABEL="dds-rtps-benchmark=1"
+docker ps -q --filter "label=$RUN_LABEL" | xargs -r docker kill >/dev/null 2>&1 || true
 docker network ls --filter "name=dds_net_" -q | xargs -r docker network rm >/dev/null 2>&1 || true
 
 # -- Archive previous reports -------------------------------------------------
@@ -186,7 +190,18 @@ run_pair() {
     local rand_id
     rand_id=$(tr -dc 'a-z0-9' < /proc/sys/kernel/random/uuid 2>/dev/null | head -c 8 || echo $RANDOM)
     local pair_net="dds_net_${idx}_${rand_id}"
-    docker network create "$pair_net" >/dev/null 2>&1 || true
+    local net_ok=0 attempt
+    for attempt in 1 2 3 4 5; do
+        if docker network create "$pair_net" >/dev/null 2>&1; then
+            net_ok=1; break
+        fi
+        sleep $((attempt * 2))
+    done
+    if [ $net_ok -ne 1 ]; then
+        echo "  [FAIL] [$idx/$TOTAL] $pair_label (cannot create docker network) - not run"
+        return 0
+    fi
+    local container_name="ddsrtps_${$}_${idx}_${rand_id}"
 
     local pub_container_path="/repo/executables/$(basename "$pub_exe")"
     if [ ! -f "$REPO_ROOT/executables/$(basename "$pub_exe")" ] && [ -f "$SCRIPT_DIR/executables/$(basename "$pub_exe")" ]; then
@@ -201,7 +216,10 @@ run_pair() {
     #   /repo  = $REPO_ROOT read-only (scripts, Python files, executables)
     #   /benchmarking = $SCRIPT_DIR read-only
     #   /workspace = work_dir read-write (per-pair output XML files)
+    local exit_code=0
     docker run --rm \
+        --name "$container_name" \
+        --label "$RUN_LABEL" \
         --network "$pair_net" \
         --cap-add=NET_ADMIN \
         --cap-add=NET_RAW \
@@ -217,8 +235,7 @@ run_pair() {
             -S \"$sub_container_path\" \
             -o /workspace/$output_xml \
             $extra_args" \
-        > "$log_file" 2>&1
-    local exit_code=$?
+        > "$log_file" 2>&1 || exit_code=$?
 
     # Clean up dedicated Docker network
     docker network rm "$pair_net" >/dev/null 2>&1 || true
@@ -244,6 +261,9 @@ cleanup_parallel() {
     for pid in "${RUNNING_PIDS[@]+"${RUNNING_PIDS[@]}"}"; do
         kill "$pid" 2>/dev/null || true
     done
+    # Killing the bash subshells does NOT stop containers - kill them explicitly
+    docker ps -q --filter "label=$RUN_LABEL" | xargs -r docker kill >/dev/null 2>&1 || true
+    sleep 1
     docker network ls --filter "name=dds_net_" -q | xargs -r docker network rm >/dev/null 2>&1 || true
     rm -rf "$WORK_ROOT" 2>/dev/null || true
     exit 1
@@ -265,15 +285,60 @@ wait_for_slot() {
 
 START_TIME=$(date +%s)
 
-for i in "${!PAIRS_PUB[@]}"; do
-    wait_for_slot
-    idx=$((i + 1))
-    run_pair "$idx" "${PAIRS_PUB[$i]}" "${PAIRS_SUB[$i]}" &
-    RUNNING_PIDS+=("$!")
+# Runs the pairs with the given 0-based indices in parallel (throttled).
+run_pass() {
+    local i idx
+    for i in "$@"; do
+        wait_for_slot
+        idx=$((i + 1))
+        run_pair "$idx" "${PAIRS_PUB[$i]}" "${PAIRS_SUB[$i]}" &
+        RUNNING_PIDS+=("$!")
+    done
+    # Wait for all remaining background processes
+    wait
+    RUNNING_PIDS=()
+}
+
+# Pair is covered when its (non-empty) JUnit XML exists in $SCRIPT_DIR
+pair_xml() {
+    local pub_name sub_name
+    pub_name=$(basename "${PAIRS_PUB[$1]}" _shape_main_linux)
+    sub_name=$(basename "${PAIRS_SUB[$1]}" _shape_main_linux)
+    echo "$SCRIPT_DIR/junit_report-${pub_name}---${sub_name}.xml"
+}
+
+# Fills global array MISSING_IDX with indices of pairs without a result
+collect_missing() {
+    MISSING_IDX=()
+    local i
+    for i in "${!PAIRS_PUB[@]}"; do
+        [ -s "$(pair_xml "$i")" ] || MISSING_IDX+=("$i")
+    done
+}
+
+run_pass "${!PAIRS_PUB[@]}"
+
+# -- Retry pairs that produced no result --------------------------------------
+PAIR_RETRIES="${PAIR_RETRIES:-2}"
+MISSING_IDX=()
+collect_missing
+attempt=1
+while [ ${#MISSING_IDX[@]} -gt 0 ] && [ "$attempt" -le "$PAIR_RETRIES" ]; do
+    echo ""
+    echo "==> WARNING: ${#MISSING_IDX[@]}/$TOTAL pairs have no result. Retry $attempt/$PAIR_RETRIES..."
+    # Clean leftover containers/networks from the failed attempt
+    docker ps -q --filter "label=$RUN_LABEL" | xargs -r docker kill >/dev/null 2>&1 || true
+    docker network ls --filter "name=dds_net_" -q | xargs -r docker network rm >/dev/null 2>&1 || true
+    run_pass "${MISSING_IDX[@]}"
+    collect_missing
+    attempt=$((attempt + 1))
 done
 
-# Wait for all remaining background processes
-wait
+MISSING_FILE="$LOG_DIR/missing_pairs.txt"
+: > "$MISSING_FILE"
+for i in "${MISSING_IDX[@]+"${MISSING_IDX[@]}"}"; do
+    echo "$(basename "${PAIRS_PUB[$i]}" _shape_main_linux)---$(basename "${PAIRS_SUB[$i]}" _shape_main_linux)" >> "$MISSING_FILE"
+done
 
 # -- Clean up temporary work-dirs ---------------------------------------------
 rm -rf "$WORK_ROOT"
@@ -308,3 +373,11 @@ ls -lh "$SCRIPT_DIR"/junit_interoperability_report.xml \
         "$SCRIPT_DIR"/index.html 2>/dev/null || true
 echo ""
 echo "    Logs for individual pairs: $LOG_DIR/"
+
+if [ ${#MISSING_IDX[@]} -gt 0 ]; then
+    echo ""
+    echo "==> ERROR: INCOMPLETE RUN - $(( TOTAL - ${#MISSING_IDX[@]} ))/$TOTAL pairs have results. Missing:"
+    sed 's/^/      - /' "$MISSING_FILE"
+    exit 3
+fi
+echo "==> All $TOTAL/$TOTAL pairs have results."

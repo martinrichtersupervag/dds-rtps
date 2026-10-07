@@ -19,14 +19,12 @@
 #
 # Usage:
 #   ./run_benchmark.sh [--runs N] [--runner self-hosted|ubuntu] [--batch B]
-#   ./run_benchmark.sh           # default number of runs: 8, runner self-hosted
-#   ./run_benchmark.sh --runs 3  # run 3x instead of 8
+#                      [--jobs J1,J2,...] [--publishers p1,p2] [--subscribers s1,s2]
+#   ./run_benchmark.sh           # default: 8 runs for --jobs 16, then 8 runs for --jobs 4
+#   ./run_benchmark.sh --jobs 8  # run for --jobs 8 only
+#   ./run_benchmark.sh --jobs 32,16,8,4 --runs 2
 #   --batch B overrides the automatically assigned batch number
 #            (default: highest existing results/runX + 1)
-#
-# The script executes:
-#   N iterations with --jobs 16  (PHASE 1)
-#   N iterations with --jobs 4   (PHASE 2)
 # ==============================================================================
 set -euo pipefail
 
@@ -34,32 +32,47 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$SCRIPT_DIR"
 
-RUNS=8   # Default number of repetitions (for each --jobs group)
+RUNS=8   # Default number of repetitions (for each --jobs value)
 RUNNER="self-hosted"   # self-hosted | ubuntu
 BATCH=""               # test suite run number (auto-assigned when empty)
+JOBS_LIST=()           # List of parallel job configurations (e.g. 16, 4)
+FILTER_PUBLISHERS=""   # Publisher filter passed to run_tests_parallel.sh
+FILTER_SUBSCRIBERS=""  # Subscriber filter passed to run_tests_parallel.sh
+RUN_RETRIES="${RUN_RETRIES:-1}"   # Whole-run repeats when a run is incomplete (missing pairs)
+INCOMPLETE_RUNS=()      # Descriptions of runs that stayed incomplete
 
 # -- Argument parsing ---------------------------------------------------------
 usage() {
     echo "Usage: $0 [--runs N] [--runner self-hosted|ubuntu] [--batch B]"
+    echo "                 [--jobs J1,J2,...] [--publishers p1,p2,...] [--subscribers s1,s2,...]"
     echo ""
-    echo "  --runs N      Number of repetitions for each --jobs configuration (default: $RUNS)"
-    echo "  --runner R    Where the tests run: self-hosted | ubuntu (default: $RUNNER)"
-    echo "  --batch B     Test suite run number (default: highest results/runX + 1)"
+    echo "  --runs N           Number of repetitions for each --jobs configuration (default: $RUNS)"
+    echo "  --runner R         Where the tests run: self-hosted | ubuntu (default: $RUNNER)"
+    echo "  --batch B          Test suite run number (default: highest results/runX + 1)"
+    echo "  --jobs|-j LIST     Jobs list (comma or space separated, e.g. '32,16,8,4' or '8', default: '16 4')"
+    echo "  --publishers|-p L  Publisher filter (passed to run_tests_parallel.sh)"
+    echo "  --subscribers|-s L Subscriber filter (passed to run_tests_parallel.sh)"
     echo ""
-    echo "The script runs N iterations with --jobs 16 and N iterations with --jobs 4."
     echo "Resulting files are renamed and stored in benchmarking/results/runB/."
     exit 1
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --runs|-r)  RUNS="$2"; shift 2 ;;
-        --runner)   RUNNER="$2"; shift 2 ;;
-        --batch|-b) BATCH="$2"; shift 2 ;;
-        --help|-h)  usage ;;
+        --runs|-r)        RUNS="$2"; shift 2 ;;
+        --runner)         RUNNER="$2"; shift 2 ;;
+        --batch|-b)       BATCH="$2"; shift 2 ;;
+        --jobs|-j)        IFS=',' read -ra TOKENS <<< "$2"; JOBS_LIST+=("${TOKENS[@]}"); shift 2 ;;
+        --publishers|-p)  FILTER_PUBLISHERS="$2"; shift 2 ;;
+        --subscribers|-s) FILTER_SUBSCRIBERS="$2"; shift 2 ;;
+        --help|-h)        usage ;;
         *) echo "Unknown argument: $1"; usage ;;
     esac
 done
+
+if [ ${#JOBS_LIST[@]} -eq 0 ]; then
+    JOBS_LIST=(16 4)
+fi
 
 if ! [[ "$RUNS" =~ ^[0-9]+$ ]] || [ "$RUNS" -lt 1 ]; then
     echo "ERROR: --runs must be a positive integer (provided: '$RUNS')"
@@ -126,17 +139,46 @@ run_once() {
     local total_runs="$3"
 
     local dt
-    dt=$(date +%d%m%Y-%H%M)   # DDMMYYYY-HHMM at start time
-
-    echo ""
-    echo "================================================================"
-    echo "  Run ${run_idx}/${total_runs}  (--jobs ${jobs})   [${dt}]"
-    echo "================================================================"
-
     local t_start
-    t_start=$(date +%s)
+    local rc attempt=0
+    local -a parallel_cmd=("$SCRIPT_DIR/run_tests_parallel.sh" --jobs "$jobs")
+    if [ -n "$FILTER_PUBLISHERS" ]; then
+        parallel_cmd+=(--publishers "$FILTER_PUBLISHERS")
+    fi
+    if [ -n "$FILTER_SUBSCRIBERS" ]; then
+        parallel_cmd+=(--subscribers "$FILTER_SUBSCRIBERS")
+    fi
 
-    bash "$SCRIPT_DIR/run_tests_parallel.sh" --jobs "$jobs"
+    while true; do
+        dt=$(date +%d%m%Y-%H%M)   # DDMMYYYY-HHMM at start time
+
+        echo ""
+        echo "================================================================"
+        echo "  Run ${run_idx}/${total_runs}  (--jobs ${jobs})   [${dt}]"
+        [ "$attempt" -gt 0 ] && echo "  (repeat ${attempt}/${RUN_RETRIES} - previous attempt was incomplete)"
+        echo "================================================================"
+
+        t_start=$(date +%s)
+        rc=0
+        bash "${parallel_cmd[@]}" || rc=$?
+
+        if [ "$rc" -eq 0 ]; then
+            break
+        elif [ "$rc" -eq 3 ]; then
+            # Incomplete: some pairs have no result even after per-pair retries
+            if [ "$attempt" -lt "$RUN_RETRIES" ]; then
+                attempt=$(( attempt + 1 ))
+                echo "  WARNING: run ${run_idx}/${total_runs} (--jobs ${jobs}) incomplete - repeating whole run."
+                continue
+            fi
+            echo "  ERROR: run ${run_idx}/${total_runs} (--jobs ${jobs}) stayed INCOMPLETE."
+            INCOMPLETE_RUNS+=("run ${run_idx}/${total_runs} --jobs ${jobs} [${dt}]: $(paste -sd' ' "$SCRIPT_DIR/.parallel_logs/missing_pairs.txt" 2>/dev/null)")
+            break
+        else
+            echo "  ERROR: run_tests_parallel.sh failed with exit code ${rc}."
+            exit "$rc"
+        fi
+    done
 
     local t_end
     t_end=$(date +%s)
@@ -172,36 +214,48 @@ run_once() {
 echo ""
 echo "=================================================================="
 echo "  run_benchmark.sh - benchmark test suite"
-echo "  Number of runs: ${RUNS}x with --jobs 16  +  ${RUNS}x with --jobs 4"
+echo "  Jobs configurations: ${JOBS_LIST[*]}"
+echo "  Number of runs per job config: ${RUNS}"
+if [ -n "$FILTER_PUBLISHERS" ]; then
+    echo "  Publishers filter: ${FILTER_PUBLISHERS}"
+fi
+if [ -n "$FILTER_SUBSCRIBERS" ]; then
+    echo "  Subscribers filter: ${FILTER_SUBSCRIBERS}"
+fi
 echo "=================================================================="
 
 GLOBAL_START=$(date +%s)
+phase_num=1
 
-echo ""
-echo "------------------------------------------------------------------"
-echo "  PHASE 1: ${RUNS} repetitions with --jobs 16"
-echo "------------------------------------------------------------------"
-for i in $(seq 1 "$RUNS"); do
-    run_once 16 "$i" "$RUNS"
-done
-
-echo ""
-echo "------------------------------------------------------------------"
-echo "  PHASE 2: ${RUNS} repetitions with --jobs 4"
-echo "------------------------------------------------------------------"
-for i in $(seq 1 "$RUNS"); do
-    run_once 4 "$i" "$RUNS"
+for jobs_cfg in "${JOBS_LIST[@]}"; do
+    echo ""
+    echo "------------------------------------------------------------------"
+    echo "  PHASE ${phase_num}: ${RUNS} repetitions with --jobs ${jobs_cfg}"
+    echo "------------------------------------------------------------------"
+    for i in $(seq 1 "$RUNS"); do
+        run_once "$jobs_cfg" "$i" "$RUNS"
+    done
+    phase_num=$(( phase_num + 1 ))
 done
 
 GLOBAL_END=$(date +%s)
 GLOBAL_ELAPSED=$(( GLOBAL_END - GLOBAL_START ))
-TOTAL_RUNS=$(( RUNS * 2 ))
+TOTAL_RUNS=$(( RUNS * ${#JOBS_LIST[@]} ))
 
 echo ""
 echo "=================================================================="
 echo "  Total benchmark completed in ${GLOBAL_ELAPSED}s"
-echo "  Total runs: ${TOTAL_RUNS}  (${RUNS}x par16 + ${RUNS}x par4)"
+echo "  Total runs: ${TOTAL_RUNS}  (${RUNS}x each for jobs: ${JOBS_LIST[*]})"
 echo "=================================================================="
+if [ ${#INCOMPLETE_RUNS[@]} -gt 0 ]; then
+    echo ""
+    echo "  !!! ${#INCOMPLETE_RUNS[@]} INCOMPLETE RUN(S) - results are NOT comparable:"
+    for r in "${INCOMPLETE_RUNS[@]}"; do
+        echo "      - $r"
+    done
+else
+    echo "  All runs complete (every run covered all pairs)."
+fi
 echo ""
 echo "Resulting files in $RESULTS_DIR:"
 ls -1 \
@@ -236,3 +290,4 @@ else
         || echo "WARNING: compare-all analysis failed."
 fi
 echo ""
+if [ ${#INCOMPLETE_RUNS[@]} -gt 0 ]; then exit 1; fi
