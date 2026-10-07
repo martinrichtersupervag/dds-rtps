@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# This script lives in discovery/, but all relative paths (executables,
+# interoperability_report.py, ...) are relative to the repository root.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.." || exit 1
+
 # Default values
 input="."
 publisher=""
@@ -31,9 +36,9 @@ usage() {
     echo "  -h, --help              Print this help message"
     echo "Examples:"
     echo "Run Connext as publisher and all executables under './executables' as subscribers"
-    echo "  ./run_tests.sh -p connext_dds-6.1.2_shape_main_linux -i ./executables"
+    echo "  ./discovery/run_tests.sh -p connext_dds-6.1.2_shape_main_linux -i ./executables"
     echo "Run discovery test only between Connext and Cyclone DDS:"
-    echo "  ./run_tests.sh -p connext_dds-7.7.0_shape_main_linux -s eclipse_cyclone-11.0.1_shape_main_linux -d"
+    echo "  ./discovery/run_tests.sh -p connext_dds-7.7.0_shape_main_linux -s eclipse_cyclone-11.0.1_shape_main_linux -d"
     exit 1
 }
 
@@ -159,10 +164,7 @@ for i in $publisher; do
             if [[ "$discovery_only" == "true" ]]; then
                 dur=${sniffer_duration:-6}
             fi
-            sniffer_script="./benchmarking/rtps_discovery_sniffer.py"
-            if [ ! -f "$sniffer_script" ] && [ -f "./rtps_discovery_sniffer.py" ]; then
-                sniffer_script="./rtps_discovery_sniffer.py"
-            fi
+            sniffer_script="$SCRIPT_DIR/rtps_discovery_sniffer.py"
             if [ -f "$sniffer_script" ]; then
                 echo "Starting RTPS discovery sniffer for $publisher_name vs $subscriber_name (${dur}s)..."
                 python3 "$sniffer_script" \

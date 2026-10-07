@@ -37,4 +37,4 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt || \
 COPY . /workspace
 
 # Default command: launch test suite
-CMD ["/bin/bash", "./run_tests.sh"]
+CMD ["/bin/bash", "./discovery/run_tests.sh"]

@@ -43,9 +43,9 @@ fi
 
 # Determine test arguments: default to all executables under ./executables
 if [ $# -eq 0 ]; then
-    TEST_CMD="./run_tests.sh -i ./executables"
+    TEST_CMD="./discovery/run_tests.sh -i ./executables"
 else
-    TEST_CMD="./run_tests.sh $*"
+    TEST_CMD="./discovery/run_tests.sh $*"
 fi
 
 # Create dedicated isolated Docker network to prevent cross-container multicast leakage

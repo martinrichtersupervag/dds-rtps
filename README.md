@@ -501,7 +501,7 @@ You can also launch an interactive shell in the Docker container:
 Or run via Docker Compose:
 
 ```bash
-docker compose -f benchmarking/docker-compose.yml run --rm tester ./run_tests.sh -i ./executables
+docker compose -f benchmarking/docker-compose.yml run --rm tester ./discovery/run_tests.sh -i ./executables
 ```
 
 All generated reports (`junit_interoperability_report.xml`, `interoperability_report.xlsx`, `index.html`) are saved directly to the host workspace, and previous runs are automatically archived to `archive_reports/`.

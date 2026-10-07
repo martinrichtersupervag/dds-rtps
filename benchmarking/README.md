@@ -22,7 +22,7 @@ Adresář byl vytvořen za účelem oddělení těchto doplňkových nástrojů 
 
 ### 3. RTPS Discovery Sniffer
 * [`rtps_discovery_sniffer.py`](file:///d:/prog/polis/Angel-RTI-OMG/MR-dds-rtps/benchmarking/rtps_discovery_sniffer.py) – Nástroj pro odposlech a dekódování RTPS discovery metatrafficu (SPDP/SEDP) pomocí `tshark`.
-* [`test_rtps_discovery_sniffer.py`](file:///d:/prog/polis/Angel-RTI-OMG/MR-dds-rtps/benchmarking/test_rtps_discovery_sniffer.py) – Unit testy pro discovery sniffer.
+* [`test_rtps_discovery_sniffer.py`](../discovery/test_rtps_discovery_sniffer.py) – Unit testy pro discovery sniffer.
 
 ### 4. GitHub Actions self-hosted runner skripty
 * [`runner/`](file:///d:/prog/polis/Angel-RTI-OMG/MR-dds-rtps/benchmarking/runner/) – Pomocné skripty pro spouštění GitHub Actions self-hosted runneru (`config.sh`, `env.sh`, `run.sh`, šablony a `safe_sleep.sh`).
