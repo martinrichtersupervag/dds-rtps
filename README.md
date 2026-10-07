@@ -481,13 +481,13 @@ Furthermore, Docker's default bridge network isolates RTPS multicast discovery t
 Run all tests against executables in `./executables` and automatically generate XML, Excel (`.xlsx`), and HTML (`index.html`) reports:
 
 ```bash
-./benchmarking/run_tests_in_docker.sh
+./discovery/run_discovery_and_interop_tests_in_docker.sh
 ```
 
-To run tests on a specific subset of executables or pass custom flags to `run_tests.sh`:
+To run tests on a specific subset of executables or pass custom flags to `discovery/run_discovery_tests.sh`:
 
 ```bash
-./benchmarking/run_tests_in_docker.sh -p ./executables/connext_dds*shape_main_linux -s ./executables/opendds*shape_main_linux
+./discovery/run_discovery_and_interop_tests_in_docker.sh -p ./executables/connext_dds*shape_main_linux -s ./executables/opendds*shape_main_linux
 ```
 
 ### Interactive Shell or Custom Execution
@@ -501,7 +501,7 @@ You can also launch an interactive shell in the Docker container:
 Or run via Docker Compose:
 
 ```bash
-docker compose -f benchmarking/docker-compose.yml run --rm tester ./discovery/run_tests.sh -i ./executables
+docker compose -f benchmarking/docker-compose.yml run --rm tester ./discovery/run_discovery_tests.sh -i ./executables
 ```
 
 All generated reports (`junit_interoperability_report.xml`, `interoperability_report.xlsx`, `index.html`) are saved directly to the host workspace, and previous runs are automatically archived to `archive_reports/`.

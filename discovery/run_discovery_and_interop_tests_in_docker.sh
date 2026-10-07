@@ -23,7 +23,7 @@ if ! command -v docker &> /dev/null; then
 fi
 
 # 1. Archive previous test reports from host if present
-archive_dir="$SCRIPT_DIR/archive_reports"
+archive_dir="$REPO_ROOT/benchmarking/archive_reports"
 shopt -s nullglob
 old_reports=("$REPO_ROOT"/*.xml "$REPO_ROOT"/*.xlsx "$REPO_ROOT"/index.html "$REPO_ROOT"/discovery_report*.json "$REPO_ROOT"/discovery_summary.json "$REPO_ROOT"/timestamp \
              "$SCRIPT_DIR"/*.xml "$SCRIPT_DIR"/*.xlsx "$SCRIPT_DIR"/index.html "$SCRIPT_DIR"/discovery_report*.json "$SCRIPT_DIR"/discovery_summary.json "$SCRIPT_DIR"/timestamp)
@@ -38,14 +38,14 @@ rm -f "$REPO_ROOT/timestamp" "$SCRIPT_DIR/timestamp"
 # 2. Build Docker image if not present or missing tshark
 if [[ "$(docker images -q "$IMAGE_NAME" 2> /dev/null)" == "" ]] || ! docker run --rm "$IMAGE_NAME" which tshark &> /dev/null; then
     echo "==> [2/4] Building Docker image: $IMAGE_NAME..."
-    docker build -t "$IMAGE_NAME" -f "$SCRIPT_DIR/Dockerfile" "$REPO_ROOT"
+    docker build -t "$IMAGE_NAME" -f "$REPO_ROOT/benchmarking/Dockerfile" "$REPO_ROOT"
 fi
 
 # Determine test arguments: default to all executables under ./executables
 if [ $# -eq 0 ]; then
-    TEST_CMD="./discovery/run_tests.sh -i ./executables"
+    TEST_CMD="./discovery/run_discovery_tests.sh -i ./executables"
 else
-    TEST_CMD="./discovery/run_tests.sh $*"
+    TEST_CMD="./discovery/run_discovery_tests.sh $*"
 fi
 
 # Create dedicated isolated Docker network to prevent cross-container multicast leakage

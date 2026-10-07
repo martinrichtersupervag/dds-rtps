@@ -36,5 +36,5 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt || \
 # Copy all repository files into container
 COPY . /workspace
 
-# Default command: launch test suite
-CMD ["/bin/bash", "./discovery/run_tests.sh"]
+# Default command: interactive shell (discovery tests are run separately via discovery/run_discovery_and_interop_tests_in_docker.sh)
+CMD ["/bin/bash"]

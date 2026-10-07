@@ -36,9 +36,9 @@ usage() {
     echo "  -h, --help              Print this help message"
     echo "Examples:"
     echo "Run Connext as publisher and all executables under './executables' as subscribers"
-    echo "  ./discovery/run_tests.sh -p connext_dds-6.1.2_shape_main_linux -i ./executables"
+    echo "  ./discovery/run_discovery_tests.sh -p connext_dds-6.1.2_shape_main_linux -i ./executables"
     echo "Run discovery test only between Connext and Cyclone DDS:"
-    echo "  ./discovery/run_tests.sh -p connext_dds-7.7.0_shape_main_linux -s eclipse_cyclone-11.0.1_shape_main_linux -d"
+    echo "  ./discovery/run_discovery_tests.sh -p connext_dds-7.7.0_shape_main_linux -s eclipse_cyclone-11.0.1_shape_main_linux -d"
     exit 1
 }
 

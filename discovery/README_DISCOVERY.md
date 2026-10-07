@@ -11,8 +11,8 @@ Všechny discovery soubory jsou v adresáři `discovery/`. Soubory mimo něj jso
 - [`rtps_discovery_sniffer.py`](rtps_discovery_sniffer.py): Samostatný Python skript využívající `tshark` pro zachycení a dissekci RTPS discovery metatrafficu (SPDP na multicast portu 7400 a unicast/multicast SEDP).
 - [`test_rtps_discovery_sniffer.py`](test_rtps_discovery_sniffer.py): Sada unit testů pokrývající dekódování parametrů, formátování časových značek, JUnit XML validaci a QoS kompatibilitu.
 - [`Dockerfile`](../benchmarking/Dockerfile): Doplněna instalace `tshark` s nastavením SUID práv (`chmod 4755 /usr/bin/dumpcap`) pro zachytávání síťových paketů v neprivilegovaném kontejneru.
-- [`run_tests.sh`](run_tests.sh): Skript se přepne do kořene repozitáře (`cd "$SCRIPT_DIR/.."`), takže jej lze spustit z libovolného adresáře. Automatické spouštění discovery snifferu na pozadí během testování, podpora přepínačů `-d / --discovery-only`, `-t / --test` a `--skip-discovery`.
-- [`run_tests_in_docker.sh`](../benchmarking/run_tests_in_docker.sh): Předávání discovery parametrů, archivace discovery JSON reportů a spouštění kontejneru s `--cap-add=NET_ADMIN --cap-add=NET_RAW`.
+- [`run_discovery_tests.sh`](run_discovery_tests.sh): Skript se přepne do kořene repozitáře (`cd "$SCRIPT_DIR/.."`), takže jej lze spustit z libovolného adresáře. Automatické spouštění discovery snifferu na pozadí během testování, podpora přepínačů `-d / --discovery-only`, `-t / --test` a `--skip-discovery`.
+- [`run_discovery_and_interop_tests_in_docker.sh`](run_discovery_and_interop_tests_in_docker.sh): Předávání discovery parametrů, archivace discovery JSON reportů a spouštění kontejneru s `--cap-add=NET_ADMIN --cap-add=NET_RAW`.
 - [`generate_reports.sh`](../benchmarking/generate_reports.sh): Ošetřeno slučování JUnit XML reportů tak, aby discovery reporty zůstávaly oddělené od `junit_interoperability_report.xml`.
 - [`.gitignore`](../.gitignore): Doplněno ignorování generovaných discovery JSON reportů a dočasného souboru `timestamp`.
 
@@ -76,7 +76,7 @@ python3 -m unittest test_rtps_discovery_sniffer -v
 ### A. Rychlý discovery test v Dockeru (~6 sekund):
 Spustí pouze úvodní discovery test (`Test_Domain_0`) bez nutnosti čekat na všech 105 testů:
 ```bash
-./benchmarking/run_tests_in_docker.sh \
+./discovery/run_discovery_and_interop_tests_in_docker.sh \
     -p ./executables/connext_dds-7.7.0_shape_main_linux \
     -s ./executables/eclipse_cyclone-11.0.1_shape_main_linux \
     -d
@@ -85,7 +85,7 @@ Spustí pouze úvodní discovery test (`Test_Domain_0`) bez nutnosti čekat na v
 ### B. Kompletní testovací sada (interoperabilita + discovery):
 Spustí celou sadu 105 interoperability testů a discovery sniffer automaticky zachytí počáteční discovery komunikaci:
 ```bash
-./benchmarking/run_tests_in_docker.sh \
+./discovery/run_discovery_and_interop_tests_in_docker.sh \
     -p ./executables/connext_dds-7.7.0_shape_main_linux \
     -s ./executables/eclipse_cyclone-11.0.1_shape_main_linux
 ```
@@ -93,7 +93,7 @@ Spustí celou sadu 105 interoperability testů a discovery sniffer automaticky z
 ### B2. Přímé spuštění bez Dockeru (z libovolného adresáře):
 Vyžaduje nainstalovaný `tshark` a oprávnění k zachytávání paketů.
 ```bash
-./discovery/run_tests.sh -p connext_dds-7.7.0_shape_main_linux -s eclipse_cyclone-11.0.1_shape_main_linux -d
+./discovery/run_discovery_tests.sh -p connext_dds-7.7.0_shape_main_linux -s eclipse_cyclone-11.0.1_shape_main_linux -d
 ```
 
 ### C. Samostatný odposlech z příkazové řádky:
@@ -126,7 +126,7 @@ npx -y xunit-viewer --results=./junit_discovery_report_20260922-19_02_32.xml --o
 
 ## 5. Integrace do Dockeru a testovacího skriptu
 
-Skripty [`run_tests.sh`](run_tests.sh) i [`run_tests_in_docker.sh`](../benchmarking/run_tests_in_docker.sh) podporují tyto parametry:
+Skripty [`run_discovery_tests.sh`](run_discovery_tests.sh) i [`run_discovery_and_interop_tests_in_docker.sh`](run_discovery_and_interop_tests_in_docker.sh) podporují tyto parametry:
 
 * **`-d` / `--discovery-only`**: Spustí pouze discovery test (`Test_Domain_0`) v délce cca 6 sekund.
 * **`-t` / `--test <test_name>`**: Spustí jeden konkrétní test (např. `-t Test_Domain_0`).

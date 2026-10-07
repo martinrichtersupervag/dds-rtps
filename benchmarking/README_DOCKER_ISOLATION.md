@@ -136,7 +136,7 @@ Umožňuje spouštět desítky interoperability testů souběžně (např. `--jo
 - Na začátku skriptu probíhá preventivní pročištění visících dočasných sítí.
 - Obsahuje globální `trap cleanup_parallel INT TERM`, který při stisku `Ctrl+C` ukončí běžící subprocesy a odstraní všechny vytvořené dočasné sítě.
 
-### 3. `run_tests_in_docker.sh`
+### 3. `discovery/run_discovery_and_interop_tests_in_docker.sh`
 Konzistentně doplněna dedikovaná síť i do skriptu pro jednorázové spuštění celé testovací sady uvnitř kontejneru.
 
 ---
